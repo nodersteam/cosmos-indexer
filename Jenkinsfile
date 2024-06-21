@@ -26,7 +26,7 @@ pipeline {
             }
         }
         stage('Deploy') {
-            agent { label "jenkins-agent-2" }
+            agent { label "DEPLOY" }
             steps {
                 deployApplication()
             }
