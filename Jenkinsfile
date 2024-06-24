@@ -15,7 +15,8 @@ pipeline {
                     env.POSTGRES_CONTAINER = "${env.DOCKER_APP}_postgres"
                     env.REDIS_CONTAINER = "redis"
                     env.GIT_TAG = sh(returnStdout: true, script: "git tag --contains | head -1").trim()
-                    env.IMAGE_NAME = "${env.DOCKER_APP}:${env.GIT_TAG}"
+                    env.NEXUS_REGISTRY = "nexus.noders.team:5002"
+                    env.IMAGE_NAME = "${env.NEXUS_REGISTRY}/${env.DOCKER_APP}:${env.GIT_TAG}"
                 }
                 checkout scm
             }
@@ -26,7 +27,6 @@ pipeline {
             }
         }
         stage('Deploy') {
-            agent { label "DEPLOY" }
             steps {
                 deployApplication()
             }
@@ -54,21 +54,45 @@ void setBuildStatus(String message, String state) {
             $class: "GitHubCommitStatusSetter",
             reposSource: [$class: "ManuallyEnteredRepositorySource", url: "https://github.com/nodersteam/cosmos-indexer.git"],
             contextSource: [$class: "ManuallyEnteredCommitContextSource", context: "ci/jenkins/build-status"],
-            errorHandlers: [[$class: "ChangingBuildStatusErrorHandler", result: "UNSTABLE"]],
+            errorHandlers: [[$class: "ChangingBuildStatusErrorHandler", result: "SUCCESS"]],
             statusResultSource: [ $class: "ConditionalStatusResultSource", results: [[$class: "AnyBuildResult", message: message, state: state]] ]
     ]);
 }
 
+void dockerLogin() {
+    withCredentials([usernamePassword(credentialsId: 'jenkins-nexus', passwordVariable: 'pass', usernameVariable: 'user')]) {
+        sh script: "docker login --username $user --password $pass ${env.NEXUS_REGISTRY}", label: "Docker login"
+    }
+}
+
 void buildApplication() {
+    dockerLogin()
     sh "docker build -t ${env.IMAGE_NAME} --build-arg TARGETPLATFORM=linux/amd64 ."
+    sh script: "docker push ${env.IMAGE_NAME}"
 }
 
 void deployApplication() {
-    createDockerNetwork()
-    runPostgres()
-    runRedis()
-    runMongo()
-    runApplication()
+    // Get agents by label
+    env.nodes = Jenkins.instance.getLabel('DEPLOY').getNodes().collect { it.getNodeName() }
+    def firstString = env.nodes - ~/^\[\s*/
+    def lastString = firstString - ~/]\s*$/
+    def noCommasString = lastString.split(',').collect { it.trim() }
+    noCommasString.each { processedString ->
+        withEnv(["env.NODE_NAME=${processedString}"]) {
+            // Checks if agent is active or not. Run on active agents
+            if (Jenkins.instance.getNode(processedString).toComputer().isOnline()) {
+                node(processedString) {
+                    echo "${processedString}"
+                    dockerLogin()
+                    createDockerNetwork()
+                    runPostgres()
+                    runRedis()
+                    runMongo()
+                    runApplication()
+                }
+            }
+        }
+    }
 }
 
 void createDockerNetwork() {
