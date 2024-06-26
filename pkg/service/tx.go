@@ -46,7 +46,7 @@ func (s *txs) TransactionRawLog(ctx context.Context, hash string) ([]byte, error
 
 func (s *txs) Transactions(ctx context.Context, offset int64, limit int64) ([]*models.Tx, int64, error) {
 	transactions, all, err := s.txRepo.Transactions(ctx, limit, offset, nil)
-	log.Info().Msgf("transactions len %d", len(transactions))
+	log.Debug().Msgf("transactions len %d", len(transactions))
 	if err != nil {
 		return nil, 0, err
 	}
@@ -71,7 +71,7 @@ func (s *txs) TotalTransactions(ctx context.Context, to time.Time) (*model.Total
 
 func (s *txs) GetTxByHash(ctx context.Context, txHash string) (*models.Tx, error) {
 	transactions, _, err := s.txRepo.Transactions(ctx, 10, 0, &repository.TxsFilter{TxHash: &txHash})
-	log.Info().Msgf("transactions len %d", len(transactions))
+	log.Debug().Msgf("transactions len %d", len(transactions))
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func (s *txs) GetTxByHash(ctx context.Context, txHash string) (*models.Tx, error
 
 func (s *txs) TransactionsByBlock(ctx context.Context, height int64, limit int64, offset int64) ([]*models.Tx, int64, error) {
 	transactions, all, err := s.txRepo.Transactions(ctx, limit, offset, &repository.TxsFilter{TxBlockHeight: &height})
-	log.Info().Msgf("transactions len %d", len(transactions))
+	log.Debug().Msgf("transactions len %d", len(transactions))
 	if err != nil {
 		return nil, 0, err
 	}

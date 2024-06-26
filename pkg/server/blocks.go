@@ -292,6 +292,7 @@ func (r *blocksServer) txSenderToProto(in *model.TxSenderReceiver) *pb.TxSenderR
 		Sender:      in.Sender,
 		Receiver:    in.Receiver,
 		Amount:      in.Amount,
+		Denom:       in.Denom,
 	}
 }
 

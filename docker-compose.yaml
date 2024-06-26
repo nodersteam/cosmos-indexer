@@ -80,13 +80,13 @@ services:
       cosmos-indexer index \
       --log.pretty = true \
       --log.level = info \
-      --base.start-block 1718307 \
+      --base.start-block 1754021 \
       --base.end-block -1 \
       --base.throttling 2.005 \
       --base.rpc-workers 1 \
       --base.index-transactions true \
       --base.index-block-events true \
-      --probe.rpc https://celestia-rpc.publicnode.com:443  \
+      --probe.rpc http://celestia.full.noders.services:26657 \
       --probe.account-prefix celestia \
       --probe.chain-id celestia \
       --probe.chain-name celestia \

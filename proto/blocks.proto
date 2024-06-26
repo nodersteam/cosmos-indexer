@@ -103,6 +103,7 @@ message TxSenderReceiver {
   string sender = 2;
   string receiver = 3;
   string amount = 4;
+  string denom = 5;
 }
 
 message Fee {
