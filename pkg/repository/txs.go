@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -41,7 +43,7 @@ type txs struct {
 	db *pgxpool.Pool
 }
 
-func NewTxs(db *pgxpool.Pool) Txs {
+func NewTxs(db *pgxpool.Pool) *txs {
 	return &txs{db: db}
 }
 
@@ -359,6 +361,11 @@ func (r *txs) Transactions(ctx context.Context, limit int64, offset int64, filte
 		tx.AuthInfo = authInfo
 		tx.TxResponse = txResponse
 
+		res, err := r.GetSenderAndReceiver(context.Background(), tx.Hash)
+		if err == nil {
+			tx.SenderReceiver = res
+		}
+
 		result = append(result, &tx)
 	}
 
@@ -519,10 +526,36 @@ func (r *txs) GetSenderAndReceiver(ctx context.Context, hash string) (*model.TxS
 		}
 
 		if strings.EqualFold(key, "amount") {
-			res.Amount = value
+			amount, denom, err := r.extractNumber(value)
+			if err != nil {
+				log.Err(err).Msgf("GetSenderAndReceiver: extractNumber error")
+				res.Amount = value
+			} else {
+				res.Amount = amount.String()
+				res.Denom = denom
+			}
 		}
 	}
 	return res, nil
+}
+
+func (r *txs) extractNumber(value string) (decimal.Decimal, string, error) {
+	pattern := regexp.MustCompile(`(\d+)`)
+	numberStrings := pattern.FindAllStringSubmatch(value, -1)
+	numbers := make([]int, len(numberStrings))
+	for i, numberString := range numberStrings {
+		number, err := strconv.Atoi(numberString[1])
+		if err != nil {
+			return decimal.Zero, "", err
+		}
+		numbers[i] = number
+	}
+	if len(numbers) > 0 {
+		denom := strings.ReplaceAll(value, strconv.Itoa(numbers[0]), "")
+		return decimal.NewFromInt(int64(numbers[0])), denom, nil
+	}
+
+	return decimal.Zero, "", fmt.Errorf("not found")
 }
 
 func (r *txs) GetWalletsCount(ctx context.Context) (*model.TotalWallets, error) {

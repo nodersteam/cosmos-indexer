@@ -2,7 +2,9 @@ package repository
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/jackc/pgx/v5"
 	"github.com/shopspring/decimal"
 	"testing"
@@ -317,6 +319,28 @@ func TestTxs_ChartTransactionsVolume(t *testing.T) {
 	require.Equal(t, data[1].TxVolume, decimal.RequireFromString("100"))
 	require.Equal(t, data[2].TxVolume, decimal.RequireFromString("2000"))
 	require.Equal(t, data[3].TxVolume, decimal.RequireFromString("1000"))
+}
+
+func TestTxs_ExtractNumber(t *testing.T) {
+	txsRepo := NewTxs(postgresConn)
+	amount, denom, err := txsRepo.extractNumber("18000000utia")
+	require.NoError(t, err)
+	require.Equal(t, denom, "utia")
+	require.Equal(t, amount.String(), "18000000")
+
+	amount, denom, err = txsRepo.extractNumber("18000000")
+	require.NoError(t, err)
+	require.Equal(t, denom, "")
+	require.Equal(t, amount.String(), "18000000")
+
+	config := sdk.GetConfig()
+	config.SetBech32PrefixForAccount("celestia", "celestiapub")
+	config.SetBech32PrefixForValidator("celestiavaloper", "celestiavaloperpub")
+	config.SetBech32PrefixForConsensusNode("celestiavalcons", "celestiavalconspub")
+	config.Seal()
+	valAddr, _ := sdk.ValAddressFromBech32("celestiavaloper1lm4jtr6wjwpamz2e9wlgzdazly3vnwqy53t5t4")
+	accAddr, _ := sdk.AccAddressFromHexUnsafe(hex.EncodeToString(valAddr.Bytes()))
+	fmt.Println(accAddr.String())
 }
 
 func TestTxs_VolumePerPeriod(t *testing.T) {

@@ -40,4 +40,5 @@ type TxSenderReceiver struct {
 	Sender      string `json:"sender,omitempty"`
 	Receiver    string `json:"receiver,omitempty"`
 	Amount      string `json:"amount,omitempty"`
+	Denom       string `json:"denom,omitempty"`
 }
