@@ -526,7 +526,6 @@ func (r *txs) GetSenderAndReceiver(ctx context.Context, hash string) (*model.TxS
 		}
 
 		if strings.EqualFold(key, "amount") {
-			log.Info().Msgf(value)
 			amount, denom, err := r.extractNumber(value)
 			if err != nil {
 				log.Err(err).Msgf("GetSenderAndReceiver: extractNumber error")
