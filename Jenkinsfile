@@ -18,11 +18,11 @@ pipeline {
                     env.NEXUS_REGISTRY = "nexus.noders.team:5002"
                     env.IMAGE_NAME = "${env.NEXUS_REGISTRY}/${env.DOCKER_APP}:${env.GIT_TAG}"
                 }
-                checkout scm
             }
         }
         stage('Build Docker Image') {
             steps {
+                checkout scm
                 buildApplication()
             }
         }
