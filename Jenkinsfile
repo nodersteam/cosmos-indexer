@@ -185,7 +185,7 @@ void runApplication() {
               --base.rpc-workers 1 \
               --base.index-transactions true \
               --base.index-block-events true \
-              --probe.rpc http://celestia.full.noders.services:26657  \
+              --probe.rpc https://celestia-rpc.publicnode.com:443  \
               --probe.account-prefix celestia \
               --probe.chain-id celestia \
               --probe.chain-name celestia \
