@@ -72,7 +72,7 @@ func (s *Cache) GetTransactions(ctx context.Context, start, stop int64) ([]*mode
 	if stop > maxTransactionsCacheSize {
 		stop = maxTransactionsCacheSize
 	}
-	res, err := s.rdb.LRange(ctx, transactionsKey, start, stop-1).Result()
+	res, err := s.rdb.LRange(ctx, transactionsKey, start, (start+stop)-1).Result()
 	if err != nil {
 		return nil, 0, err
 	}
@@ -139,7 +139,7 @@ func (s *Cache) GetBlocks(ctx context.Context, start, stop int64) ([]*model.Bloc
 		stop = maxBlocksCacheSize
 	}
 
-	res, err := s.rdb.LRange(ctx, blocksKey, start, stop-1).Result()
+	res, err := s.rdb.LRange(ctx, blocksKey, start, (start+stop)-1).Result()
 	if err != nil {
 		return nil, 0, err
 	}
