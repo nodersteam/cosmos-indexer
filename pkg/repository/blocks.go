@@ -351,13 +351,13 @@ func (r *blocks) blockGas(ctx context.Context, height int64) (decimal.Decimal, d
 }
 
 func (r *blocks) BlockSignatures(ctx context.Context, height int64, limit int64, offset int64) ([]*model.BlockSigners, int64, error) {
-	query := `select blocks.height, addresses.address, txes.timestamp from blocks
-                     left join txes on blocks.id = txes.block_id
-                     left join tx_responses on txes.tx_response_id = tx_responses.id
-                     left join tx_auth_info on txes.auth_info_id = tx_auth_info.id
-                     left join tx_signer_infos on tx_auth_info.id = tx_signer_infos.auth_info_id
-                     left join tx_signer_info on tx_signer_infos.signer_info_id = tx_signer_info.id
-                     left join addresses on tx_signer_info.address_id = addresses.id
+	query := `select distinct blocks.height, addresses.address, txes.timestamp from blocks
+                     inner join txes on blocks.id = txes.block_id
+                     inner join tx_responses on txes.tx_response_id = tx_responses.id
+                     inner join tx_auth_info on txes.auth_info_id = tx_auth_info.id
+                     inner join tx_signer_infos on tx_auth_info.id = tx_signer_infos.auth_info_id
+                     inner join tx_signer_info on tx_signer_infos.signer_info_id = tx_signer_info.id
+                     inner join addresses on tx_signer_info.address_id = addresses.id
                      where blocks.height=$1`
 	queryLimit := query + ` limit $2 offset $3`
 	rows, err := r.db.Query(ctx, queryLimit, height, limit, offset)
@@ -375,13 +375,13 @@ func (r *blocks) BlockSignatures(ctx context.Context, height int64, limit int64,
 		res = append(res, &in)
 	}
 
-	queryAll := `select count(addresses.address) from blocks
-                     left join txes on blocks.id = txes.block_id
-                     left join tx_responses on txes.tx_response_id = tx_responses.id
-                     left join tx_auth_info on txes.auth_info_id = tx_auth_info.id
-                     left join tx_signer_infos on tx_auth_info.id = tx_signer_infos.auth_info_id
-                     left join tx_signer_info on tx_signer_infos.signer_info_id = tx_signer_info.id
-                     left join addresses on tx_signer_info.address_id = addresses.id
+	queryAll := `select count(distinct addresses.address) from blocks
+                     inner join txes on blocks.id = txes.block_id
+                     inner join tx_responses on txes.tx_response_id = tx_responses.id
+                     inner join tx_auth_info on txes.auth_info_id = tx_auth_info.id
+                     inner join tx_signer_infos on tx_auth_info.id = tx_signer_infos.auth_info_id
+                     inner join tx_signer_info on tx_signer_infos.signer_info_id = tx_signer_info.id
+                     inner join addresses on tx_signer_info.address_id = addresses.id
                      where blocks.height=$1`
 	row := r.db.QueryRow(ctx, queryAll, height)
 	var all int64
