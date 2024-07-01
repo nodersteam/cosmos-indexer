@@ -3,6 +3,7 @@ package core
 import (
 	"encoding/hex"
 	"fmt"
+	"github.com/rs/zerolog/log"
 
 	ctypes "github.com/cometbft/cometbft/rpc/core/types"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
@@ -24,7 +25,7 @@ const (
 
 type FailedBlockHandler func(height int64, code BlockProcessingFailure, err error)
 
-// Process RPC Block data into the model object used by the application.
+// ProcessBlock Process RPC Block data into the model object used by the application.
 func ProcessBlock(blockData *ctypes.ResultBlock, blockResultsData *ctypes.ResultBlockResults, chainID uint) (models.Block, error) {
 	block := models.Block{
 		Height:  blockData.Block.Height,
@@ -41,6 +42,23 @@ func ProcessBlock(blockData *ctypes.ResultBlock, blockResultsData *ctypes.Result
 	block.TimeStamp = blockData.Block.Time
 	block.BlockHash = blockData.BlockID.Hash.String()
 	block.TotalTxs = blockData.Block.Txs.Len()
+
+	signatures := make([]models.BlockSignature, 0)
+	for _, bl := range blockData.Block.LastCommit.Signatures {
+		address, err := sdkTypes.ConsAddressFromHex(
+			hex.EncodeToString(bl.ValidatorAddress.Bytes()))
+		if err != nil {
+			log.Err(err).Msgf("Error parsing validator address")
+			continue
+		}
+
+		signatures = append(signatures, models.BlockSignature{
+			ValidatorAddress: address.String(),
+			Signature:        bl.Signature,
+			Timestamp:        bl.Timestamp,
+		})
+	}
+	block.Signatures = signatures
 
 	return block, nil
 }

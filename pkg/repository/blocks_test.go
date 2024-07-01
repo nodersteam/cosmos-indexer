@@ -180,3 +180,66 @@ VALUES
 		})
 	}
 }
+
+func TestBlocks_BlockSignatures(t *testing.T) {
+	type expected struct {
+		bl    []*model.BlockSigners
+		total int64
+		err   error
+	}
+
+	sampleBlocks := `INSERT INTO blocks (id, time_stamp, height, chain_id, proposer_cons_address_id, tx_indexed, block_events_indexed, block_hash) 
+VALUES 
+    (1, $1, 1000, 1, 1, true, true, 'block_hash_1'),
+    (2, $1, 1001, 1, 2, true, true, 'block_hash_2');`
+
+	sampleSignatures := `INSERT INTO block_signatures (block_id, validator_address, timestamp) 
+VALUES 
+    (1, 'val_addr1', now()),
+    (1, 'val_addr2', now()),
+    (1, 'val_addr3', now()),
+    (2, 'val_addr3', now()),
+    (2, 'val_addr2', now())`
+
+	tm := time.Now().Add(-5 * time.Minute).UTC()
+	_, err := postgresConn.Exec(context.Background(), sampleBlocks, tm)
+	require.NoError(t, err)
+	_, err = postgresConn.Exec(context.Background(), sampleSignatures)
+	require.NoError(t, err)
+
+	defer func() {
+		postgresConn.Exec(context.Background(), `delete from blocks`)
+		postgresConn.Exec(context.Background(), `delete from block_signatures`)
+	}()
+
+	tests := []struct {
+		name   string
+		height int64
+		result expected
+	}{
+		{"success",
+			1000,
+			expected{total: 3, bl: []*model.BlockSigners{
+				{BlockHeight: 1000, Validator: "val_addr1"},
+				{BlockHeight: 1000, Validator: "val_addr2"},
+				{BlockHeight: 1000, Validator: "val_addr3"},
+			}},
+		},
+		{"not found", 12222, expected{total: 0}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			txsRepo := NewBlocks(postgresConn)
+			res, total, err := txsRepo.BlockSignatures(context.Background(), tt.height, 100, 0)
+			if tt.result.err != nil && err == nil {
+				require.Fail(t, "expected error, got nil")
+			}
+			require.Equal(t, tt.result.err, err)
+			require.Equal(t, tt.result.total, total)
+
+			if err == nil && tt.result.total > 0 {
+				require.Equal(t, len(res), len(tt.result.bl))
+			}
+		})
+	}
+}

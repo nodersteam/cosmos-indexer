@@ -119,6 +119,7 @@ func migrateBlockModels(db *gorm.DB) error {
 		&models.BlockEventAttributeKey{},
 		&models.FailedBlock{},
 		&models.FailedEventBlock{},
+		&models.BlockSignature{},
 	)
 }
 

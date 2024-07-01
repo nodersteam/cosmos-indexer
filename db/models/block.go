@@ -4,6 +4,14 @@ import (
 	"time"
 )
 
+// Used to keep track of BeginBlock and EndBlock events
+type BlockLifecyclePosition int
+
+const (
+	BeginBlockEvent BlockLifecyclePosition = iota
+	EndBlockEvent
+)
+
 type Block struct {
 	ID                    uint
 	TimeStamp             time.Time
@@ -17,15 +25,17 @@ type Block struct {
 	// TODO: Should block event indexing be split out or rolled up?
 	BlockEventsIndexed bool
 	BlockHash          string
+	Signatures         []BlockSignature
 }
 
-// Used to keep track of BeginBlock and EndBlock events
-type BlockLifecyclePosition int
-
-const (
-	BeginBlockEvent BlockLifecyclePosition = iota
-	EndBlockEvent
-)
+type BlockSignature struct {
+	ID               uint
+	BlockID          uint64 `gorm:"uniqueIndex:idx_bl_signature"`
+	Block            Block
+	ValidatorAddress string `gorm:"uniqueIndex:idx_bl_signature"`
+	Timestamp        time.Time
+	Signature        []byte `gorm:"type:bytea"`
+}
 
 type BlockEvent struct {
 	ID uint
