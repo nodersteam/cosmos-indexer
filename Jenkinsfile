@@ -185,7 +185,7 @@ void runApplication() {
               --base.rpc-workers 1 \
               --base.index-transactions true \
               --base.index-block-events true \
-              --probe.rpc 65.109.54.91:11657  \
+              --probe.rpc http://65.109.54.91:11657  \
               --probe.account-prefix celestia \
               --probe.chain-id celestia \
               --probe.chain-name celestia \
