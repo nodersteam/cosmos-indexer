@@ -265,6 +265,16 @@ func postgresManualMigration(ctx context.Context) {
 		);`
 	migrations = append(migrations, queryDenoms)
 
+	queryBlockSignatures := `create table block_signatures
+		(
+			id   bigserial
+				primary key,
+			block_id  bigint,
+			validator_address text,
+			timestamp timestamp with time zone
+		);`
+	migrations = append(migrations, queryBlockSignatures)
+
 	for _, query := range migrations {
 		_, err := postgresConn.Exec(ctx, query)
 		if err != nil {
