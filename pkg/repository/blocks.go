@@ -21,6 +21,7 @@ type Blocks interface {
 	TotalBlocks(ctx context.Context, to time.Time) (*model.TotalBlocks, error)
 	Blocks(ctx context.Context, limit int64, offset int64) ([]*model.BlockInfo, int64, error)
 	BlockSignatures(ctx context.Context, height int64, limit int64, offset int64) ([]*model.BlockSigners, int64, error)
+	BlockUptime(ctx context.Context, blockWindow, height int64, validatorAddr string) (float64, error)
 }
 
 type blocks struct {
@@ -29,6 +30,21 @@ type blocks struct {
 
 func NewBlocks(db *pgxpool.Pool) Blocks {
 	return &blocks{db: db}
+}
+
+func (r *blocks) BlockUptime(ctx context.Context, blockWindow, height int64, validatorAddr string) (float64, error) {
+	query := `select count(b.height)
+				from block_signatures bs 
+    			left join public.blocks b on b.id = bs.block_id
+    			where b.height between $1 and $2
+    			and bs.validator_address = $3`
+	var totalSigned int64
+	err := r.db.QueryRow(ctx, query, height-blockWindow, height, validatorAddr).Scan(
+		&totalSigned)
+	if err != nil {
+		return 0, fmt.Errorf("exec %v", err)
+	}
+	return (float64(totalSigned) / float64(blockWindow)) * 100.00, nil
 }
 
 func (r *blocks) GetBlockInfo(ctx context.Context, block int32) (*model.BlockInfo, error) {

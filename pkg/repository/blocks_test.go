@@ -188,6 +188,11 @@ func TestBlocks_BlockSignatures(t *testing.T) {
 		err   error
 	}
 
+	defer func() {
+		postgresConn.Exec(context.Background(), `delete from blocks`)
+		postgresConn.Exec(context.Background(), `delete from block_signatures`)
+	}()
+
 	sampleBlocks := `INSERT INTO blocks (id, time_stamp, height, chain_id, proposer_cons_address_id, tx_indexed, block_events_indexed, block_hash) 
 VALUES 
     (1, $1, 1000, 1, 1, true, true, 'block_hash_1'),
@@ -206,11 +211,6 @@ VALUES
 	require.NoError(t, err)
 	_, err = postgresConn.Exec(context.Background(), sampleSignatures)
 	require.NoError(t, err)
-
-	defer func() {
-		postgresConn.Exec(context.Background(), `delete from blocks`)
-		postgresConn.Exec(context.Background(), `delete from block_signatures`)
-	}()
 
 	tests := []struct {
 		name   string
@@ -240,6 +240,94 @@ VALUES
 			if err == nil && tt.result.total > 0 {
 				require.Equal(t, len(res), len(tt.result.bl))
 			}
+		})
+	}
+}
+
+func TestBlocks_BlockUptime(t *testing.T) {
+	type expected struct {
+		upTime float64
+		err    error
+	}
+
+	defer func() {
+		postgresConn.Exec(context.Background(), `delete from blocks`)
+		postgresConn.Exec(context.Background(), `delete from block_signatures`)
+	}()
+
+	sampleBlocks := `INSERT INTO blocks (id, time_stamp, height, chain_id, proposer_cons_address_id, tx_indexed, block_events_indexed, block_hash) 
+VALUES 
+    (1, $1, 1000, 1, 1, true, true, 'block_hash_1'),
+    (2, $1, 1001, 1, 2, true, true, 'block_hash_2'),
+    (3, $1, 1002, 1, 1, true, true, 'block_hash_3'),
+    (4, $1, 1003, 1, 1, true, true, 'block_hash_4'),
+    (5, $1, 1004, 1, 1, true, true, 'block_hash_5'),
+    (6, $1, 1005, 1, 1, true, true, 'block_hash_5'),
+    (7, $1, 1006, 1, 1, true, true, 'block_hash_6'),
+    (8, $1, 1007, 1, 1, true, true, 'block_hash_7'),
+    (9, $1, 1008, 1, 1, true, true, 'block_hash_8'),
+    (10, $1, 1009, 1, 1, true, true, 'block_hash_9');`
+
+	sampleSignatures := `INSERT INTO block_signatures (block_id, validator_address, timestamp) 
+VALUES 
+    (1, 'val_addr1', now()),
+    (1, 'val_addr2', now()),
+    (1, 'val_addr3', now()),
+    (2, 'val_addr3', now()),
+    (2, 'val_addr2', now()),
+    (3, 'val_addr2', now()),
+    (3, 'val_addr1', now()),
+    (4, 'val_addr2', now()),
+    (5, 'val_addr2', now()),
+    (6, 'val_addr2', now()),
+    (6, 'val_addr1', now()),
+    (7, 'val_addr2', now()),
+    (8, 'val_addr2', now()),
+    (9, 'val_addr2', now()),
+    (9, 'val_addr1', now()),
+    (10, 'val_addr2', now());`
+
+	tm := time.Now().Add(-5 * time.Minute).UTC()
+	_, err := postgresConn.Exec(context.Background(), sampleBlocks, tm)
+	require.NoError(t, err)
+	_, err = postgresConn.Exec(context.Background(), sampleSignatures)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name             string
+		height           int64
+		window           int64
+		validatorAddress string
+		result           expected
+	}{
+		{"success 100%",
+			1010,
+			10,
+			"val_addr2",
+			expected{upTime: 100.00},
+		},
+		{"success 40%",
+			1010,
+			10,
+			"val_addr1",
+			expected{upTime: 40.00},
+		},
+		{"success 10%",
+			1010,
+			10,
+			"val_addr3",
+			expected{upTime: 20.00},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			txsRepo := NewBlocks(postgresConn)
+			res, err := txsRepo.BlockUptime(context.Background(), tt.window, tt.height, tt.validatorAddress)
+			if tt.result.err != nil && err == nil {
+				require.Fail(t, "expected error, got nil")
+			}
+			require.Equal(t, tt.result.err, err)
+			require.Equal(t, tt.result.upTime, res)
 		})
 	}
 }
