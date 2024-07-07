@@ -26,6 +26,7 @@ service BlocksService {
   rpc SearchHashByText(SearchHashByTextRequest) returns (SearchHashByTextResponse) {}
   rpc ChartTransactionsByHour(ChartTransactionsByHourRequest) returns (ChartTransactionsByHourResponse) {}
   rpc ChartTransactionsVolume(ChartTransactionsVolumeRequest) returns (ChartTransactionsVolumeResponse) {}
+  rpc BlockUpTime(BlockUpTimeRequest) returns (BlockUpTimeResponse) {}
 }
 
 
@@ -322,4 +323,14 @@ message TxsVolumeByHour {
 
 message ChartTransactionsVolumeResponse{
   repeated TxsVolumeByHour points = 1;
+}
+
+message BlockUpTimeRequest{
+  int64 block_window = 1;
+  int64 block_height = 2;
+  string validator_address = 3;
+}
+
+message BlockUpTimeResponse {
+  string uptime = 1;
 }
