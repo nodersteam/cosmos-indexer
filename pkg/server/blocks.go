@@ -456,5 +456,5 @@ func (r *blocksServer) BlockUpTime(ctx context.Context, in *pb.BlockUpTimeReques
 		return &pb.BlockUpTimeResponse{}, err
 	}
 
-	return &pb.BlockUpTimeResponse{Uptime: float32(upTime)}, err
+	return &pb.BlockUpTimeResponse{Uptime: decimal.NewFromFloat32(upTime).String()}, nil
 }

@@ -332,5 +332,5 @@ message BlockUpTimeRequest{
 }
 
 message BlockUpTimeResponse {
-  float uptime = 1;
+  string uptime = 1;
 }
