@@ -27,6 +27,7 @@ service BlocksService {
   rpc ChartTransactionsByHour(ChartTransactionsByHourRequest) returns (ChartTransactionsByHourResponse) {}
   rpc ChartTransactionsVolume(ChartTransactionsVolumeRequest) returns (ChartTransactionsVolumeResponse) {}
   rpc BlockUpTime(BlockUpTimeRequest) returns (BlockUpTimeResponse) {}
+  rpc UptimeByBlocks(UptimeByBlocksRequest) returns (UptimeByBlocksResponse) {}
 }
 
 
@@ -333,4 +334,20 @@ message BlockUpTimeRequest{
 
 message BlockUpTimeResponse {
   string uptime = 1;
+}
+
+message UptimeByBlocksRequest {
+  int64 block_window = 1;
+  int64 block_height = 2;
+  string validator_address = 3;
+}
+
+message BlockSigned {
+  int64 block_height = 1;
+  bool signed = 2;
+}
+
+message UptimeByBlocksResponse{
+  repeated BlockSigned blocks = 1;
+  float uptime = 2;
 }
