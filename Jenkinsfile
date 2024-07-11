@@ -179,7 +179,7 @@ void runApplication() {
             /bin/sh -c "/bin/cosmos-indexer index \
               --log.pretty = true \
               --log.level = info \
-              --base.start-block 1837358 \
+              --base.start-block 1867419 \
               --base.end-block -1 \
               --base.throttling 2.005 \
               --base.rpc-workers 1 \
