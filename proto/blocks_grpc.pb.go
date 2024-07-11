@@ -39,6 +39,7 @@ const (
 	BlocksService_ChartTransactionsByHour_FullMethodName = "/blocks.BlocksService/ChartTransactionsByHour"
 	BlocksService_ChartTransactionsVolume_FullMethodName = "/blocks.BlocksService/ChartTransactionsVolume"
 	BlocksService_BlockUpTime_FullMethodName             = "/blocks.BlocksService/BlockUpTime"
+	BlocksService_UptimeByBlocks_FullMethodName          = "/blocks.BlocksService/UptimeByBlocks"
 )
 
 // BlocksServiceClient is the client API for BlocksService service.
@@ -65,6 +66,7 @@ type BlocksServiceClient interface {
 	ChartTransactionsByHour(ctx context.Context, in *ChartTransactionsByHourRequest, opts ...grpc.CallOption) (*ChartTransactionsByHourResponse, error)
 	ChartTransactionsVolume(ctx context.Context, in *ChartTransactionsVolumeRequest, opts ...grpc.CallOption) (*ChartTransactionsVolumeResponse, error)
 	BlockUpTime(ctx context.Context, in *BlockUpTimeRequest, opts ...grpc.CallOption) (*BlockUpTimeResponse, error)
+	UptimeByBlocks(ctx context.Context, in *UptimeByBlocksRequest, opts ...grpc.CallOption) (*UptimeByBlocksResponse, error)
 }
 
 type blocksServiceClient struct {
@@ -275,6 +277,16 @@ func (c *blocksServiceClient) BlockUpTime(ctx context.Context, in *BlockUpTimeRe
 	return out, nil
 }
 
+func (c *blocksServiceClient) UptimeByBlocks(ctx context.Context, in *UptimeByBlocksRequest, opts ...grpc.CallOption) (*UptimeByBlocksResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UptimeByBlocksResponse)
+	err := c.cc.Invoke(ctx, BlocksService_UptimeByBlocks_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BlocksServiceServer is the server API for BlocksService service.
 // All implementations must embed UnimplementedBlocksServiceServer
 // for forward compatibility
@@ -299,6 +311,7 @@ type BlocksServiceServer interface {
 	ChartTransactionsByHour(context.Context, *ChartTransactionsByHourRequest) (*ChartTransactionsByHourResponse, error)
 	ChartTransactionsVolume(context.Context, *ChartTransactionsVolumeRequest) (*ChartTransactionsVolumeResponse, error)
 	BlockUpTime(context.Context, *BlockUpTimeRequest) (*BlockUpTimeResponse, error)
+	UptimeByBlocks(context.Context, *UptimeByBlocksRequest) (*UptimeByBlocksResponse, error)
 	mustEmbedUnimplementedBlocksServiceServer()
 }
 
@@ -365,6 +378,9 @@ func (UnimplementedBlocksServiceServer) ChartTransactionsVolume(context.Context,
 }
 func (UnimplementedBlocksServiceServer) BlockUpTime(context.Context, *BlockUpTimeRequest) (*BlockUpTimeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BlockUpTime not implemented")
+}
+func (UnimplementedBlocksServiceServer) UptimeByBlocks(context.Context, *UptimeByBlocksRequest) (*UptimeByBlocksResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UptimeByBlocks not implemented")
 }
 func (UnimplementedBlocksServiceServer) mustEmbedUnimplementedBlocksServiceServer() {}
 
@@ -739,6 +755,24 @@ func _BlocksService_BlockUpTime_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BlocksService_UptimeByBlocks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UptimeByBlocksRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BlocksServiceServer).UptimeByBlocks(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BlocksService_UptimeByBlocks_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BlocksServiceServer).UptimeByBlocks(ctx, req.(*UptimeByBlocksRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BlocksService_ServiceDesc is the grpc.ServiceDesc for BlocksService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -825,6 +859,10 @@ var BlocksService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "BlockUpTime",
 			Handler:    _BlocksService_BlockUpTime_Handler,
+		},
+		{
+			MethodName: "UptimeByBlocks",
+			Handler:    _BlocksService_UptimeByBlocks_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

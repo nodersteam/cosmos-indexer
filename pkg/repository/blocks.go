@@ -20,8 +20,12 @@ type Blocks interface {
 	GetBlockValidators(ctx context.Context, block int32) ([]string, error)
 	TotalBlocks(ctx context.Context, to time.Time) (*model.TotalBlocks, error)
 	Blocks(ctx context.Context, limit int64, offset int64) ([]*model.BlockInfo, int64, error)
-	BlockSignatures(ctx context.Context, height int64, limit int64, offset int64) ([]*model.BlockSigners, int64, error)
-	BlockUptime(ctx context.Context, blockWindow, height int64, validatorAddr string) (float32, error)
+	BlockSignatures(ctx context.Context, height int64,
+		limit int64, offset int64) ([]*model.BlockSigners, int64, error)
+	BlockUptime(ctx context.Context, blockWindow, height int64,
+		validatorAddr string) (float32, error)
+	UptimeByBlocks(ctx context.Context, blockWindow, height int64,
+		validatorAddr string) ([]*model.BlockSigned, float32, error)
 }
 
 type blocks struct {
@@ -400,4 +404,37 @@ func (r *blocks) BlockSignatures(ctx context.Context, height int64, limit int64,
 	}
 
 	return res, all, nil
+}
+
+func (r *blocks) UptimeByBlocks(ctx context.Context, blockWindow, height int64, validatorAddr string) ([]*model.BlockSigned, float32, error) {
+	query := `select b.height
+				from block_signatures bs 
+    			left join public.blocks b on b.id = bs.block_id
+    			where b.height between $1 and $2
+    			and bs.validator_address = $3`
+	rows, err := r.db.Query(ctx, query, height-blockWindow, height, validatorAddr)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	data := make(map[int64]bool)
+	for rows.Next() {
+		var signedHeight int64
+		if err = rows.Scan(&signedHeight); err != nil {
+			return nil, 0, err
+		}
+		data[signedHeight] = true
+	}
+
+	unsigned := make([]*model.BlockSigned, 0)
+	init := height - blockWindow
+	for i := init; i < height; i++ {
+		_, found := data[i]
+		if !found {
+			unsigned = append(unsigned, &model.BlockSigned{BlockHeight: i, Signed: false})
+		}
+	}
+
+	upTime := (float32(len(data)) / float32(blockWindow)) * 100.00
+	return unsigned, upTime, nil
 }

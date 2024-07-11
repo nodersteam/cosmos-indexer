@@ -14,8 +14,12 @@ type Blocks interface {
 	BlockValidators(ctx context.Context, block int32) ([]string, error)
 	TotalBlocks(ctx context.Context, to time.Time) (*model.TotalBlocks, error)
 	Blocks(ctx context.Context, limit int64, offset int64) ([]*model.BlockInfo, int64, error)
-	BlockSignatures(ctx context.Context, height int64, limit int64, offset int64) ([]*model.BlockSigners, int64, error)
-	BlockUptime(ctx context.Context, blockWindow, height int64, validatorAddr string) (float32, error)
+	BlockSignatures(ctx context.Context, height int64,
+		limit int64, offset int64) ([]*model.BlockSigners, int64, error)
+	BlockUptime(ctx context.Context, blockWindow, height int64,
+		validatorAddr string) (float32, error)
+	UptimeByBlocks(ctx context.Context, blockWindow, height int64,
+		validatorAddr string) ([]*model.BlockSigned, float32, error)
 }
 
 type blocks struct {
@@ -52,4 +56,8 @@ func (s *blocks) BlockSignatures(ctx context.Context, height int64, limit int64,
 
 func (s *blocks) BlockUptime(ctx context.Context, blockWindow, height int64, validatorAddr string) (float32, error) {
 	return s.blocksRepo.BlockUptime(ctx, blockWindow, height, validatorAddr)
+}
+
+func (s *blocks) UptimeByBlocks(ctx context.Context, blockWindow, height int64, validatorAddr string) ([]*model.BlockSigned, float32, error) {
+	return s.blocksRepo.UptimeByBlocks(ctx, blockWindow, height, validatorAddr)
 }

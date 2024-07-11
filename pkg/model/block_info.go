@@ -50,3 +50,8 @@ type TotalWallets struct {
 	Count24H int64 `json:"count_24h"`
 	Count48H int64 `json:"count_48h"`
 }
+
+type BlockSigned struct {
+	BlockHeight int64
+	Signed      bool
+}

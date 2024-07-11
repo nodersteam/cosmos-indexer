@@ -458,3 +458,16 @@ func (r *blocksServer) BlockUpTime(ctx context.Context, in *pb.BlockUpTimeReques
 
 	return &pb.BlockUpTimeResponse{Uptime: decimal.NewFromFloat32(upTime).String()}, nil
 }
+
+func (r *blocksServer) UptimeByBlocks(ctx context.Context, in *pb.UptimeByBlocksRequest) (*pb.UptimeByBlocksResponse, error) {
+	unSinged, total, err := r.srv.UptimeByBlocks(ctx, in.BlockWindow, in.BlockHeight, in.ValidatorAddress)
+	if err != nil {
+		return &pb.UptimeByBlocksResponse{}, err
+	}
+	data := make([]*pb.BlockSigned, 0)
+	for _, s := range unSinged {
+		data = append(data, &pb.BlockSigned{BlockHeight: s.BlockHeight, Signed: s.Signed})
+	}
+
+	return &pb.UptimeByBlocksResponse{Uptime: total, Blocks: data}, nil
+}
