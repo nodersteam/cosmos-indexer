@@ -27,6 +27,8 @@ type Txs interface {
 	ChartTransactionsByHour(ctx context.Context, to time.Time) (*model.TxByHourWithCount, error)
 	ChartTransactionsVolume(ctx context.Context, to time.Time) ([]*model.TxVolumeByHour, error)
 	GetVotes(ctx context.Context, accountAddress string) ([]*model.VotesTransaction, error)
+	GetPowerEvents(ctx context.Context, accountAddress string,
+		limit int64, offset int64) ([]*models.Tx, int64, error)
 }
 
 type txs struct {
@@ -115,4 +117,8 @@ func (s *txs) ChartTransactionsVolume(ctx context.Context, to time.Time) ([]*mod
 
 func (s *txs) GetVotes(ctx context.Context, accountAddress string) ([]*model.VotesTransaction, error) {
 	return s.txRepo.GetVotes(ctx, accountAddress)
+}
+
+func (s *txs) GetPowerEvents(ctx context.Context, accountAddress string, limit int64, offset int64) ([]*models.Tx, int64, error) {
+	return s.txRepo.GetPowerEvents(ctx, accountAddress, limit, offset)
 }
