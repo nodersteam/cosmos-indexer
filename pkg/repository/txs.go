@@ -657,10 +657,17 @@ group by inn.id, inn.timestamp, inn.hash, inn.height`
 
 		for rowsEvents.Next() {
 			var voteTx model.VotesTransaction
+			var proposalID string
 			if err = rowsEvents.Scan(&txID, &voteTx.Timestamp, &voteTx.TxHash, &voteTx.BlockHeight,
-				&voteTx.Voter, &voteTx.Option, &voteTx.ProposalID); err != nil {
+				&voteTx.Voter, &voteTx.Option, &proposalID); err != nil {
 				return nil, err
 			}
+
+			id, err := strconv.Atoi(proposalID)
+			if err != nil {
+				return nil, err
+			}
+			voteTx.ProposalID = id
 
 			re := regexp.MustCompile(`option:(\w+)\s+weight:"([0-9.]+)"`)
 			matches := re.FindStringSubmatch(voteTx.Option)
