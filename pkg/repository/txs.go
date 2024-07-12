@@ -32,6 +32,7 @@ type Txs interface {
 	GetWalletsCount(ctx context.Context) (*model.TotalWallets, error)
 	ChartTransactionsByHour(ctx context.Context, to time.Time) (*model.TxByHourWithCount, error)
 	ChartTransactionsVolume(ctx context.Context, to time.Time) ([]*model.TxVolumeByHour, error)
+	GetVotes(ctx context.Context, accountAddress string) ([]*model.VotesTransaction, error)
 }
 
 type TxsFilter struct {
@@ -603,4 +604,79 @@ func (r *txs) GetWalletsCount(ctx context.Context) (*model.TotalWallets, error) 
 	}
 
 	return &model.TotalWallets{Total: countAll, Count24H: count24H, Count48H: count48H}, nil
+}
+
+func (r *txs) GetVotes(ctx context.Context, accountAddress string) ([]*model.VotesTransaction, error) {
+	voterQuery := `select txes.id
+			from txes
+					left join blocks on txes.block_id = blocks.id
+					left join messages on txes.id = messages.tx_id
+					left join message_types on messages.message_type_id = message_types.id
+					left join message_events on messages.id = message_events.message_id
+					left join message_event_types on message_events.message_event_type_id=message_event_types.id
+					left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
+					left join message_event_attribute_keys on message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
+					where message_types.message_type in ('/cosmos.gov.v1beta1.MsgVote') and type = 'proposal_vote' and key='voter' and value = $1
+			order by txes.id, messages.message_index, message_events.index, message_event_attributes.index asc;`
+	rows, err := r.db.Query(ctx, voterQuery, accountAddress)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	queryEvents := `select inn.id, inn.timestamp, inn.hash, inn.height, max(inn.voter) as voter, max(inn.option) as option, max(inn.proposal_id) as proposal_id from (
+select txes.id,
+       txes.timestamp,
+       txes.hash,
+       blocks.height,
+       case when message_event_attribute_keys.key = 'voter' then message_event_attributes.value end as voter,
+       case when message_event_attribute_keys.key = 'option' then message_event_attributes.value end as option,
+       case when message_event_attribute_keys.key = 'proposal_id' then message_event_attributes.value end as proposal_id
+from txes
+         left join blocks on txes.block_id = blocks.id
+         left join messages on txes.id = messages.tx_id
+         left join message_types on messages.message_type_id = message_types.id
+         left join message_events on messages.id = message_events.message_id
+         left join message_event_types on message_events.message_event_type_id=message_event_types.id
+         left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
+         left join message_event_attribute_keys on message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
+where message_types.message_type in ('/cosmos.gov.v1beta1.MsgVote') and type = 'proposal_vote' and txes.id = $1
+order by txes.id, messages.message_index, message_events.index, message_event_attributes.index asc) as inn
+group by inn.id, inn.timestamp, inn.hash, inn.height`
+	data := make([]*model.VotesTransaction, 0)
+	for rows.Next() {
+		var txID int64
+		if err = rows.Scan(&txID); err != nil {
+			return nil, err
+		}
+		rowsEvents, err := r.db.Query(ctx, queryEvents, txID)
+		if err != nil {
+			return nil, err
+		}
+		defer rowsEvents.Close()
+
+		for rowsEvents.Next() {
+			var voteTx model.VotesTransaction
+			if err = rowsEvents.Scan(&txID, &voteTx.Timestamp, &voteTx.TxHash, &voteTx.BlockHeight,
+				&voteTx.Voter, &voteTx.Option, &voteTx.ProposalID); err != nil {
+				return nil, err
+			}
+
+			re := regexp.MustCompile(`option:(\w+)\s+weight:"([0-9.]+)"`)
+			matches := re.FindStringSubmatch(voteTx.Option)
+
+			if len(matches) < 3 {
+				return nil, fmt.Errorf("no match found for option: %s", voteTx.Option)
+			}
+
+			option := matches[1]
+			weight := matches[2]
+			voteTx.Option = option
+			voteTx.Weight = weight
+
+			data = append(data, &voteTx)
+		}
+	}
+
+	return data, nil
 }

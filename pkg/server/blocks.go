@@ -471,3 +471,25 @@ func (r *blocksServer) UptimeByBlocks(ctx context.Context, in *pb.UptimeByBlocks
 
 	return &pb.UptimeByBlocksResponse{Uptime: total, Blocks: data}, nil
 }
+
+func (r *blocksServer) GetVotes(ctx context.Context, in *pb.GetVotesRequest) (*pb.GetVotesResponse, error) {
+	txs, err := r.srvTx.GetVotes(ctx, in.ValidatorAccountAddress)
+	if err != nil {
+		return &pb.GetVotesResponse{}, err
+	}
+
+	res := make([]*pb.VotesTransaction, 0)
+	for _, tx := range txs {
+		res = append(res, &pb.VotesTransaction{
+			BlockHeight: tx.BlockHeight,
+			TxHash:      tx.TxHash,
+			ProposalId:  int32(tx.ProposalID),
+			Voter:       tx.Voter,
+			Option:      tx.Option,
+			Weight:      tx.Weight,
+			Time:        timestamppb.New(tx.Timestamp),
+		})
+	}
+
+	return &pb.GetVotesResponse{Transactions: res}, nil
+}

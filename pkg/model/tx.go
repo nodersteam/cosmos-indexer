@@ -1,6 +1,9 @@
 package model
 
-import "github.com/shopspring/decimal"
+import (
+	"github.com/shopspring/decimal"
+	"time"
+)
 
 type Tx struct {
 	Messages []string
@@ -41,4 +44,14 @@ type TxSenderReceiver struct {
 	Receiver    string `json:"receiver,omitempty"`
 	Amount      string `json:"amount,omitempty"`
 	Denom       string `json:"denom,omitempty"`
+}
+
+type VotesTransaction struct {
+	BlockHeight int64     `json:"block_height"`
+	Timestamp   time.Time `json:"timestamp"`
+	TxHash      string    `json:"tx_hash"`
+	ProposalID  int       `json:"proposal_id"`
+	Voter       string    `json:"voter"`
+	Option      string    `json:"option"`
+	Weight      string    `json:"weight"`
 }
