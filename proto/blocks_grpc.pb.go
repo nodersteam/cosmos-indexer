@@ -41,6 +41,7 @@ const (
 	BlocksService_BlockUpTime_FullMethodName             = "/blocks.BlocksService/BlockUpTime"
 	BlocksService_UptimeByBlocks_FullMethodName          = "/blocks.BlocksService/UptimeByBlocks"
 	BlocksService_GetVotes_FullMethodName                = "/blocks.BlocksService/GetVotes"
+	BlocksService_GetPowerEvents_FullMethodName          = "/blocks.BlocksService/GetPowerEvents"
 )
 
 // BlocksServiceClient is the client API for BlocksService service.
@@ -69,6 +70,7 @@ type BlocksServiceClient interface {
 	BlockUpTime(ctx context.Context, in *BlockUpTimeRequest, opts ...grpc.CallOption) (*BlockUpTimeResponse, error)
 	UptimeByBlocks(ctx context.Context, in *UptimeByBlocksRequest, opts ...grpc.CallOption) (*UptimeByBlocksResponse, error)
 	GetVotes(ctx context.Context, in *GetVotesRequest, opts ...grpc.CallOption) (*GetVotesResponse, error)
+	GetPowerEvents(ctx context.Context, in *GetPowerEventsRequest, opts ...grpc.CallOption) (*GetPowerEventsResponse, error)
 }
 
 type blocksServiceClient struct {
@@ -299,6 +301,16 @@ func (c *blocksServiceClient) GetVotes(ctx context.Context, in *GetVotesRequest,
 	return out, nil
 }
 
+func (c *blocksServiceClient) GetPowerEvents(ctx context.Context, in *GetPowerEventsRequest, opts ...grpc.CallOption) (*GetPowerEventsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetPowerEventsResponse)
+	err := c.cc.Invoke(ctx, BlocksService_GetPowerEvents_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BlocksServiceServer is the server API for BlocksService service.
 // All implementations must embed UnimplementedBlocksServiceServer
 // for forward compatibility
@@ -325,6 +337,7 @@ type BlocksServiceServer interface {
 	BlockUpTime(context.Context, *BlockUpTimeRequest) (*BlockUpTimeResponse, error)
 	UptimeByBlocks(context.Context, *UptimeByBlocksRequest) (*UptimeByBlocksResponse, error)
 	GetVotes(context.Context, *GetVotesRequest) (*GetVotesResponse, error)
+	GetPowerEvents(context.Context, *GetPowerEventsRequest) (*GetPowerEventsResponse, error)
 	mustEmbedUnimplementedBlocksServiceServer()
 }
 
@@ -397,6 +410,9 @@ func (UnimplementedBlocksServiceServer) UptimeByBlocks(context.Context, *UptimeB
 }
 func (UnimplementedBlocksServiceServer) GetVotes(context.Context, *GetVotesRequest) (*GetVotesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetVotes not implemented")
+}
+func (UnimplementedBlocksServiceServer) GetPowerEvents(context.Context, *GetPowerEventsRequest) (*GetPowerEventsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetPowerEvents not implemented")
 }
 func (UnimplementedBlocksServiceServer) mustEmbedUnimplementedBlocksServiceServer() {}
 
@@ -807,6 +823,24 @@ func _BlocksService_GetVotes_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BlocksService_GetPowerEvents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetPowerEventsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BlocksServiceServer).GetPowerEvents(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BlocksService_GetPowerEvents_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BlocksServiceServer).GetPowerEvents(ctx, req.(*GetPowerEventsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BlocksService_ServiceDesc is the grpc.ServiceDesc for BlocksService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -901,6 +935,10 @@ var BlocksService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetVotes",
 			Handler:    _BlocksService_GetVotes_Handler,
+		},
+		{
+			MethodName: "GetPowerEvents",
+			Handler:    _BlocksService_GetPowerEvents_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -33,6 +33,7 @@ type Txs interface {
 	ChartTransactionsByHour(ctx context.Context, to time.Time) (*model.TxByHourWithCount, error)
 	ChartTransactionsVolume(ctx context.Context, to time.Time) ([]*model.TxVolumeByHour, error)
 	GetVotes(ctx context.Context, accountAddress string) ([]*model.VotesTransaction, error)
+	GetPowerEvents(ctx context.Context, accountAddress string, limit int64, offset int64) ([]*models.Tx, int64, error)
 }
 
 type TxsFilter struct {
@@ -686,4 +687,64 @@ group by inn.id, inn.timestamp, inn.hash, inn.height`
 	}
 
 	return data, nil
+}
+
+func (r *txs) GetPowerEvents(ctx context.Context, accountAddress string, limit int64, offset int64) ([]*models.Tx, int64, error) {
+	queryEvents := `select txes.hash
+		from txes
+				 left join blocks on txes.block_id = blocks.id
+				 left join messages on txes.id = messages.tx_id
+				 left join message_types on messages.message_type_id = message_types.id
+				 left join message_events on messages.id = message_events.message_id
+				 left join message_event_types on message_events.message_event_type_id=message_event_types.id
+				 left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
+				 left join message_event_attribute_keys on message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
+		where message_types.message_type in ('/cosmos.staking.v1beta1.MsgDelegate',
+											 '/cosmos.staking.v1beta1.MsgUndelegate',
+											 '/cosmos.staking.v1beta1.MsgBeginRedelegate',
+											 '/cosmos.staking.v1beta1.MsgCancelUnbondingDelegation')
+		  and message_event_attributes.value=$1
+		group by txes.id, txes.timestamp, txes.hash, blocks.height
+		order by txes.timestamp desc limit $2 offset $3`
+	rows, err := r.db.Query(ctx, queryEvents, accountAddress, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	data := make([]*models.Tx, 0)
+	for rows.Next() {
+		var txHash string
+		if err = rows.Scan(&txHash); err != nil {
+			return nil, 0, err
+		}
+		txByHash, _, err := r.Transactions(ctx, 100, 0, &TxsFilter{TxHash: &txHash})
+		if err != nil {
+			return nil, 0, err
+		}
+		data = append(data, txByHash...)
+	}
+
+	queryTotal := `
+		select
+			count(txes.hash)
+		from txes
+				 left join blocks on txes.block_id = blocks.id
+				 left join messages on txes.id = messages.tx_id
+				 left join message_types on messages.message_type_id = message_types.id
+				 left join message_events on messages.id = message_events.message_id
+				 left join message_event_types on message_events.message_event_type_id=message_event_types.id
+				 left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
+				 left join message_event_attribute_keys on message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
+		where message_types.message_type in ('/cosmos.staking.v1beta1.MsgDelegate',
+											 '/cosmos.staking.v1beta1.MsgUndelegate',
+											 '/cosmos.staking.v1beta1.MsgBeginRedelegate',
+											 '/cosmos.staking.v1beta1.MsgCancelUnbondingDelegation')
+		  and message_event_attributes.value=$1`
+	var total int64
+	if err = r.db.QueryRow(ctx, queryTotal, accountAddress).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	return data, total, nil
 }

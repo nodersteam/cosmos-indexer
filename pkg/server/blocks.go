@@ -493,3 +493,25 @@ func (r *blocksServer) GetVotes(ctx context.Context, in *pb.GetVotesRequest) (*p
 
 	return &pb.GetVotesResponse{Transactions: res}, nil
 }
+
+func (r *blocksServer) GetPowerEvents(ctx context.Context, in *pb.GetPowerEventsRequest) (*pb.GetPowerEventsResponse, error) {
+	transactions, all, err := r.srvTx.GetPowerEvents(ctx, in.ValidatorAccountAddress, in.Limit.Limit, in.Limit.Offset)
+	if err != nil {
+		return &pb.GetPowerEventsResponse{}, err
+	}
+
+	data := make([]*pb.TxByHash, 0)
+	for _, tx := range transactions {
+		transaction := tx
+		data = append(data, r.txToProto(transaction))
+	}
+
+	return &pb.GetPowerEventsResponse{
+		Data: data,
+		Result: &pb.Result{
+			Limit:  in.Limit.Limit,
+			Offset: in.Limit.Offset,
+			All:    all,
+		},
+	}, nil
+}
