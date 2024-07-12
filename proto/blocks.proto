@@ -28,6 +28,7 @@ service BlocksService {
   rpc ChartTransactionsVolume(ChartTransactionsVolumeRequest) returns (ChartTransactionsVolumeResponse) {}
   rpc BlockUpTime(BlockUpTimeRequest) returns (BlockUpTimeResponse) {}
   rpc UptimeByBlocks(UptimeByBlocksRequest) returns (UptimeByBlocksResponse) {}
+  rpc GetVotes(GetVotesRequest) returns (GetVotesResponse) {}
 }
 
 
@@ -350,4 +351,22 @@ message BlockSigned {
 message UptimeByBlocksResponse{
   repeated BlockSigned blocks = 1;
   float uptime = 2;
+}
+
+message VotesTransaction{
+  int64 block_height = 1;
+  google.protobuf.Timestamp time = 2;
+  string tx_hash = 3;
+  int32 proposal_id = 4;
+  string voter = 5;
+  string option = 6;
+  string weight = 7;
+}
+
+message GetVotesRequest{
+  string validator_account_address = 3;
+}
+
+message GetVotesResponse{
+  repeated VotesTransaction transactions = 1;
 }

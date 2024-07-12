@@ -40,6 +40,7 @@ const (
 	BlocksService_ChartTransactionsVolume_FullMethodName = "/blocks.BlocksService/ChartTransactionsVolume"
 	BlocksService_BlockUpTime_FullMethodName             = "/blocks.BlocksService/BlockUpTime"
 	BlocksService_UptimeByBlocks_FullMethodName          = "/blocks.BlocksService/UptimeByBlocks"
+	BlocksService_GetVotes_FullMethodName                = "/blocks.BlocksService/GetVotes"
 )
 
 // BlocksServiceClient is the client API for BlocksService service.
@@ -67,6 +68,7 @@ type BlocksServiceClient interface {
 	ChartTransactionsVolume(ctx context.Context, in *ChartTransactionsVolumeRequest, opts ...grpc.CallOption) (*ChartTransactionsVolumeResponse, error)
 	BlockUpTime(ctx context.Context, in *BlockUpTimeRequest, opts ...grpc.CallOption) (*BlockUpTimeResponse, error)
 	UptimeByBlocks(ctx context.Context, in *UptimeByBlocksRequest, opts ...grpc.CallOption) (*UptimeByBlocksResponse, error)
+	GetVotes(ctx context.Context, in *GetVotesRequest, opts ...grpc.CallOption) (*GetVotesResponse, error)
 }
 
 type blocksServiceClient struct {
@@ -287,6 +289,16 @@ func (c *blocksServiceClient) UptimeByBlocks(ctx context.Context, in *UptimeByBl
 	return out, nil
 }
 
+func (c *blocksServiceClient) GetVotes(ctx context.Context, in *GetVotesRequest, opts ...grpc.CallOption) (*GetVotesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetVotesResponse)
+	err := c.cc.Invoke(ctx, BlocksService_GetVotes_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BlocksServiceServer is the server API for BlocksService service.
 // All implementations must embed UnimplementedBlocksServiceServer
 // for forward compatibility
@@ -312,6 +324,7 @@ type BlocksServiceServer interface {
 	ChartTransactionsVolume(context.Context, *ChartTransactionsVolumeRequest) (*ChartTransactionsVolumeResponse, error)
 	BlockUpTime(context.Context, *BlockUpTimeRequest) (*BlockUpTimeResponse, error)
 	UptimeByBlocks(context.Context, *UptimeByBlocksRequest) (*UptimeByBlocksResponse, error)
+	GetVotes(context.Context, *GetVotesRequest) (*GetVotesResponse, error)
 	mustEmbedUnimplementedBlocksServiceServer()
 }
 
@@ -381,6 +394,9 @@ func (UnimplementedBlocksServiceServer) BlockUpTime(context.Context, *BlockUpTim
 }
 func (UnimplementedBlocksServiceServer) UptimeByBlocks(context.Context, *UptimeByBlocksRequest) (*UptimeByBlocksResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UptimeByBlocks not implemented")
+}
+func (UnimplementedBlocksServiceServer) GetVotes(context.Context, *GetVotesRequest) (*GetVotesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetVotes not implemented")
 }
 func (UnimplementedBlocksServiceServer) mustEmbedUnimplementedBlocksServiceServer() {}
 
@@ -773,6 +789,24 @@ func _BlocksService_UptimeByBlocks_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BlocksService_GetVotes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetVotesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BlocksServiceServer).GetVotes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BlocksService_GetVotes_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BlocksServiceServer).GetVotes(ctx, req.(*GetVotesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BlocksService_ServiceDesc is the grpc.ServiceDesc for BlocksService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -863,6 +897,10 @@ var BlocksService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UptimeByBlocks",
 			Handler:    _BlocksService_UptimeByBlocks_Handler,
+		},
+		{
+			MethodName: "GetVotes",
+			Handler:    _BlocksService_GetVotes_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
