@@ -29,6 +29,8 @@ type Txs interface {
 	GetVotes(ctx context.Context, accountAddress string) ([]*model.VotesTransaction, error)
 	GetPowerEvents(ctx context.Context, accountAddress string,
 		limit int64, offset int64) ([]*models.Tx, int64, error)
+	GetValidatorHistoryEvents(ctx context.Context, accountAddress string,
+		limit int64, offset int64) ([]*models.Tx, int64, error)
 }
 
 type txs struct {
@@ -121,4 +123,9 @@ func (s *txs) GetVotes(ctx context.Context, accountAddress string) ([]*model.Vot
 
 func (s *txs) GetPowerEvents(ctx context.Context, accountAddress string, limit int64, offset int64) ([]*models.Tx, int64, error) {
 	return s.txRepo.GetPowerEvents(ctx, accountAddress, limit, offset)
+}
+
+func (s *txs) GetValidatorHistoryEvents(ctx context.Context, accountAddress string,
+	limit int64, offset int64) ([]*models.Tx, int64, error) {
+	return s.txRepo.GetValidatorHistory(ctx, accountAddress, limit, offset)
 }

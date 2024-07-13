@@ -30,6 +30,7 @@ service BlocksService {
   rpc UptimeByBlocks(UptimeByBlocksRequest) returns (UptimeByBlocksResponse) {}
   rpc GetVotes(GetVotesRequest) returns (GetVotesResponse) {}
   rpc GetPowerEvents(GetPowerEventsRequest) returns (GetPowerEventsResponse) {}
+  rpc GetValidatorHistoryEvents(GetValidatorHistoryEventsRequest) returns (GetValidatorHistoryEventsResponse) {}
 }
 
 
@@ -378,6 +379,16 @@ message GetPowerEventsRequest {
 }
 
 message GetPowerEventsResponse{
+  repeated TxByHash data = 1;
+  Result result = 2;
+}
+
+message GetValidatorHistoryEventsRequest {
+  string validator_account_address = 1;
+  Limit limit = 2;
+}
+
+message GetValidatorHistoryEventsResponse{
   repeated TxByHash data = 1;
   Result result = 2;
 }
