@@ -34,6 +34,7 @@ type Txs interface {
 	ChartTransactionsVolume(ctx context.Context, to time.Time) ([]*model.TxVolumeByHour, error)
 	GetVotes(ctx context.Context, accountAddress string) ([]*model.VotesTransaction, error)
 	GetPowerEvents(ctx context.Context, accountAddress string, limit int64, offset int64) ([]*models.Tx, int64, error)
+	GetValidatorHistory(ctx context.Context, accountAddress string, limit int64, offset int64) ([]*models.Tx, int64, error)
 }
 
 type TxsFilter struct {
@@ -689,7 +690,22 @@ group by inn.id, inn.timestamp, inn.hash, inn.height`
 	return data, nil
 }
 
+func (r *txs) GetValidatorHistory(ctx context.Context, accountAddress string, limit int64, offset int64) ([]*models.Tx, int64, error) {
+	types := []string{"/cosmos.slashing.v1beta1.MsgUnjail",
+		"/cosmos.staking.v1beta1.MsgEditValidator",
+		"/cosmos.staking.v1beta1.MsgCreateValidator"}
+	return r.getTransactionsByTypes(ctx, accountAddress, types, limit, offset)
+}
+
 func (r *txs) GetPowerEvents(ctx context.Context, accountAddress string, limit int64, offset int64) ([]*models.Tx, int64, error) {
+	types := []string{"/cosmos.staking.v1beta1.MsgDelegate",
+		"/cosmos.staking.v1beta1.MsgUndelegate",
+		"/cosmos.staking.v1beta1.MsgBeginRedelegate",
+		"/cosmos.staking.v1beta1.MsgCancelUnbondingDelegation"}
+	return r.getTransactionsByTypes(ctx, accountAddress, types, limit, offset)
+}
+
+func (r *txs) getTransactionsByTypes(ctx context.Context, accountAddress string, types []string, limit int64, offset int64) ([]*models.Tx, int64, error) {
 	queryEvents := `select txes.hash
 		from txes
 				 left join blocks on txes.block_id = blocks.id
@@ -699,14 +715,11 @@ func (r *txs) GetPowerEvents(ctx context.Context, accountAddress string, limit i
 				 left join message_event_types on message_events.message_event_type_id=message_event_types.id
 				 left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
 				 left join message_event_attribute_keys on message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
-		where message_types.message_type in ('/cosmos.staking.v1beta1.MsgDelegate',
-											 '/cosmos.staking.v1beta1.MsgUndelegate',
-											 '/cosmos.staking.v1beta1.MsgBeginRedelegate',
-											 '/cosmos.staking.v1beta1.MsgCancelUnbondingDelegation')
+		where message_types.message_type=ANY($4)
 		  and message_event_attributes.value=$1
 		group by txes.id, txes.timestamp, txes.hash, blocks.height
 		order by txes.timestamp desc limit $2 offset $3`
-	rows, err := r.db.Query(ctx, queryEvents, accountAddress, limit, offset)
+	rows, err := r.db.Query(ctx, queryEvents, accountAddress, limit, offset, types)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -736,13 +749,10 @@ func (r *txs) GetPowerEvents(ctx context.Context, accountAddress string, limit i
 				 left join message_event_types on message_events.message_event_type_id=message_event_types.id
 				 left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
 				 left join message_event_attribute_keys on message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
-		where message_types.message_type in ('/cosmos.staking.v1beta1.MsgDelegate',
-											 '/cosmos.staking.v1beta1.MsgUndelegate',
-											 '/cosmos.staking.v1beta1.MsgBeginRedelegate',
-											 '/cosmos.staking.v1beta1.MsgCancelUnbondingDelegation')
+		where message_types.message_type=ANY($2)
 		  and message_event_attributes.value=$1`
 	var total int64
-	if err = r.db.QueryRow(ctx, queryTotal, accountAddress).Scan(&total); err != nil {
+	if err = r.db.QueryRow(ctx, queryTotal, accountAddress, types).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 

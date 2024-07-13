@@ -515,3 +515,25 @@ func (r *blocksServer) GetPowerEvents(ctx context.Context, in *pb.GetPowerEvents
 		},
 	}, nil
 }
+
+func (r *blocksServer) GetValidatorHistoryEvents(ctx context.Context, in *pb.GetValidatorHistoryEventsRequest) (*pb.GetValidatorHistoryEventsResponse, error) {
+	transactions, all, err := r.srvTx.GetValidatorHistoryEvents(ctx, in.ValidatorAccountAddress, in.Limit.Limit, in.Limit.Offset)
+	if err != nil {
+		return &pb.GetValidatorHistoryEventsResponse{}, err
+	}
+
+	data := make([]*pb.TxByHash, 0)
+	for _, tx := range transactions {
+		transaction := tx
+		data = append(data, r.txToProto(transaction))
+	}
+
+	return &pb.GetValidatorHistoryEventsResponse{
+		Data: data,
+		Result: &pb.Result{
+			Limit:  in.Limit.Limit,
+			Offset: in.Limit.Offset,
+			All:    all,
+		},
+	}, nil
+}

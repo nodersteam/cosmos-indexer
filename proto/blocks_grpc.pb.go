@@ -19,29 +19,30 @@ import (
 const _ = grpc.SupportPackageIsVersion8
 
 const (
-	BlocksService_BlockInfo_FullMethodName               = "/blocks.BlocksService/BlockInfo"
-	BlocksService_BlockInfoByHash_FullMethodName         = "/blocks.BlocksService/BlockInfoByHash"
-	BlocksService_BlockValidators_FullMethodName         = "/blocks.BlocksService/BlockValidators"
-	BlocksService_TxChartByDay_FullMethodName            = "/blocks.BlocksService/TxChartByDay"
-	BlocksService_TxByHash_FullMethodName                = "/blocks.BlocksService/TxByHash"
-	BlocksService_TotalTransactions_FullMethodName       = "/blocks.BlocksService/TotalTransactions"
-	BlocksService_Transactions_FullMethodName            = "/blocks.BlocksService/Transactions"
-	BlocksService_TotalBlocks_FullMethodName             = "/blocks.BlocksService/TotalBlocks"
-	BlocksService_GetBlocks_FullMethodName               = "/blocks.BlocksService/GetBlocks"
-	BlocksService_BlockSignatures_FullMethodName         = "/blocks.BlocksService/BlockSignatures"
-	BlocksService_TxsByBlock_FullMethodName              = "/blocks.BlocksService/TxsByBlock"
-	BlocksService_TransactionRawLog_FullMethodName       = "/blocks.BlocksService/TransactionRawLog"
-	BlocksService_TransactionSigners_FullMethodName      = "/blocks.BlocksService/TransactionSigners"
-	BlocksService_CacheTransactions_FullMethodName       = "/blocks.BlocksService/CacheTransactions"
-	BlocksService_CacheGetBlocks_FullMethodName          = "/blocks.BlocksService/CacheGetBlocks"
-	BlocksService_CacheAggregated_FullMethodName         = "/blocks.BlocksService/CacheAggregated"
-	BlocksService_SearchHashByText_FullMethodName        = "/blocks.BlocksService/SearchHashByText"
-	BlocksService_ChartTransactionsByHour_FullMethodName = "/blocks.BlocksService/ChartTransactionsByHour"
-	BlocksService_ChartTransactionsVolume_FullMethodName = "/blocks.BlocksService/ChartTransactionsVolume"
-	BlocksService_BlockUpTime_FullMethodName             = "/blocks.BlocksService/BlockUpTime"
-	BlocksService_UptimeByBlocks_FullMethodName          = "/blocks.BlocksService/UptimeByBlocks"
-	BlocksService_GetVotes_FullMethodName                = "/blocks.BlocksService/GetVotes"
-	BlocksService_GetPowerEvents_FullMethodName          = "/blocks.BlocksService/GetPowerEvents"
+	BlocksService_BlockInfo_FullMethodName                 = "/blocks.BlocksService/BlockInfo"
+	BlocksService_BlockInfoByHash_FullMethodName           = "/blocks.BlocksService/BlockInfoByHash"
+	BlocksService_BlockValidators_FullMethodName           = "/blocks.BlocksService/BlockValidators"
+	BlocksService_TxChartByDay_FullMethodName              = "/blocks.BlocksService/TxChartByDay"
+	BlocksService_TxByHash_FullMethodName                  = "/blocks.BlocksService/TxByHash"
+	BlocksService_TotalTransactions_FullMethodName         = "/blocks.BlocksService/TotalTransactions"
+	BlocksService_Transactions_FullMethodName              = "/blocks.BlocksService/Transactions"
+	BlocksService_TotalBlocks_FullMethodName               = "/blocks.BlocksService/TotalBlocks"
+	BlocksService_GetBlocks_FullMethodName                 = "/blocks.BlocksService/GetBlocks"
+	BlocksService_BlockSignatures_FullMethodName           = "/blocks.BlocksService/BlockSignatures"
+	BlocksService_TxsByBlock_FullMethodName                = "/blocks.BlocksService/TxsByBlock"
+	BlocksService_TransactionRawLog_FullMethodName         = "/blocks.BlocksService/TransactionRawLog"
+	BlocksService_TransactionSigners_FullMethodName        = "/blocks.BlocksService/TransactionSigners"
+	BlocksService_CacheTransactions_FullMethodName         = "/blocks.BlocksService/CacheTransactions"
+	BlocksService_CacheGetBlocks_FullMethodName            = "/blocks.BlocksService/CacheGetBlocks"
+	BlocksService_CacheAggregated_FullMethodName           = "/blocks.BlocksService/CacheAggregated"
+	BlocksService_SearchHashByText_FullMethodName          = "/blocks.BlocksService/SearchHashByText"
+	BlocksService_ChartTransactionsByHour_FullMethodName   = "/blocks.BlocksService/ChartTransactionsByHour"
+	BlocksService_ChartTransactionsVolume_FullMethodName   = "/blocks.BlocksService/ChartTransactionsVolume"
+	BlocksService_BlockUpTime_FullMethodName               = "/blocks.BlocksService/BlockUpTime"
+	BlocksService_UptimeByBlocks_FullMethodName            = "/blocks.BlocksService/UptimeByBlocks"
+	BlocksService_GetVotes_FullMethodName                  = "/blocks.BlocksService/GetVotes"
+	BlocksService_GetPowerEvents_FullMethodName            = "/blocks.BlocksService/GetPowerEvents"
+	BlocksService_GetValidatorHistoryEvents_FullMethodName = "/blocks.BlocksService/GetValidatorHistoryEvents"
 )
 
 // BlocksServiceClient is the client API for BlocksService service.
@@ -71,6 +72,7 @@ type BlocksServiceClient interface {
 	UptimeByBlocks(ctx context.Context, in *UptimeByBlocksRequest, opts ...grpc.CallOption) (*UptimeByBlocksResponse, error)
 	GetVotes(ctx context.Context, in *GetVotesRequest, opts ...grpc.CallOption) (*GetVotesResponse, error)
 	GetPowerEvents(ctx context.Context, in *GetPowerEventsRequest, opts ...grpc.CallOption) (*GetPowerEventsResponse, error)
+	GetValidatorHistoryEvents(ctx context.Context, in *GetValidatorHistoryEventsRequest, opts ...grpc.CallOption) (*GetValidatorHistoryEventsResponse, error)
 }
 
 type blocksServiceClient struct {
@@ -311,6 +313,16 @@ func (c *blocksServiceClient) GetPowerEvents(ctx context.Context, in *GetPowerEv
 	return out, nil
 }
 
+func (c *blocksServiceClient) GetValidatorHistoryEvents(ctx context.Context, in *GetValidatorHistoryEventsRequest, opts ...grpc.CallOption) (*GetValidatorHistoryEventsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetValidatorHistoryEventsResponse)
+	err := c.cc.Invoke(ctx, BlocksService_GetValidatorHistoryEvents_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BlocksServiceServer is the server API for BlocksService service.
 // All implementations must embed UnimplementedBlocksServiceServer
 // for forward compatibility
@@ -338,6 +350,7 @@ type BlocksServiceServer interface {
 	UptimeByBlocks(context.Context, *UptimeByBlocksRequest) (*UptimeByBlocksResponse, error)
 	GetVotes(context.Context, *GetVotesRequest) (*GetVotesResponse, error)
 	GetPowerEvents(context.Context, *GetPowerEventsRequest) (*GetPowerEventsResponse, error)
+	GetValidatorHistoryEvents(context.Context, *GetValidatorHistoryEventsRequest) (*GetValidatorHistoryEventsResponse, error)
 	mustEmbedUnimplementedBlocksServiceServer()
 }
 
@@ -413,6 +426,9 @@ func (UnimplementedBlocksServiceServer) GetVotes(context.Context, *GetVotesReque
 }
 func (UnimplementedBlocksServiceServer) GetPowerEvents(context.Context, *GetPowerEventsRequest) (*GetPowerEventsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetPowerEvents not implemented")
+}
+func (UnimplementedBlocksServiceServer) GetValidatorHistoryEvents(context.Context, *GetValidatorHistoryEventsRequest) (*GetValidatorHistoryEventsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetValidatorHistoryEvents not implemented")
 }
 func (UnimplementedBlocksServiceServer) mustEmbedUnimplementedBlocksServiceServer() {}
 
@@ -841,6 +857,24 @@ func _BlocksService_GetPowerEvents_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BlocksService_GetValidatorHistoryEvents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetValidatorHistoryEventsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BlocksServiceServer).GetValidatorHistoryEvents(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BlocksService_GetValidatorHistoryEvents_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BlocksServiceServer).GetValidatorHistoryEvents(ctx, req.(*GetValidatorHistoryEventsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BlocksService_ServiceDesc is the grpc.ServiceDesc for BlocksService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -939,6 +973,10 @@ var BlocksService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetPowerEvents",
 			Handler:    _BlocksService_GetPowerEvents_Handler,
+		},
+		{
+			MethodName: "GetValidatorHistoryEvents",
+			Handler:    _BlocksService_GetValidatorHistoryEvents_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
