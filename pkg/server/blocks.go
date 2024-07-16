@@ -280,7 +280,28 @@ func (r *blocksServer) txToProto(tx *models.Tx) *pb.TxByHash {
 		},
 		Block:          r.toBlockProto(&tx.Block),
 		SenderReceiver: r.txSenderToProto(tx.SenderReceiver),
+		Events:         r.toEventsProto(tx.Events),
 	}
+}
+
+func (r *blocksServer) toEventsProto(in []*model.TxEvents) []*pb.TxEvent {
+	if in == nil {
+		return nil
+	}
+
+	res := make([]*pb.TxEvent, 0)
+	for _, event := range in {
+		res = append(res, &pb.TxEvent{
+			MessageType: event.MessageType,
+			EventIndex:  int32(event.EventIndex),
+			Type:        event.Type,
+			Index:       int32(event.Index),
+			Value:       event.Value,
+			Key:         event.Key,
+		})
+	}
+
+	return res
 }
 
 func (r *blocksServer) txSenderToProto(in *model.TxSenderReceiver) *pb.TxSenderReceiver {
@@ -529,6 +550,29 @@ func (r *blocksServer) GetValidatorHistoryEvents(ctx context.Context, in *pb.Get
 	}
 
 	return &pb.GetValidatorHistoryEventsResponse{
+		Data: data,
+		Result: &pb.Result{
+			Limit:  in.Limit.Limit,
+			Offset: in.Limit.Offset,
+			All:    all,
+		},
+	}, nil
+}
+
+func (r *blocksServer) TransactionsByEventValue(ctx context.Context,
+	in *pb.TransactionsByEventValueRequest) (*pb.TransactionsByEventValueResponse, error) {
+	transactions, all, err := r.srvTx.TransactionsByEventValue(ctx, in.Values, in.Type, in.Limit.Limit, in.Limit.Offset)
+	if err != nil {
+		return &pb.TransactionsByEventValueResponse{}, err
+	}
+
+	data := make([]*pb.TxByHash, 0)
+	for _, tx := range transactions {
+		transaction := tx
+		data = append(data, r.txToProto(transaction))
+	}
+
+	return &pb.TransactionsByEventValueResponse{
 		Data: data,
 		Result: &pb.Result{
 			Limit:  in.Limit.Limit,

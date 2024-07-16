@@ -30,6 +30,7 @@ type Tx struct {
 	TxResponseID                uint
 	TxResponse                  TxResponse              `gorm:"foreignKey:TxResponseID;belongsTo"`
 	SenderReceiver              *model.TxSenderReceiver `gorm:"-" json:"sender_receiver"`
+	Events                      []*model.TxEvents       `gorm:"-" json:"events"`
 }
 
 type AuthInfo struct {

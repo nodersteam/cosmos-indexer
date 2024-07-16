@@ -35,6 +35,7 @@ type Txs interface {
 	GetVotes(ctx context.Context, accountAddress string) ([]*model.VotesTransaction, error)
 	GetPowerEvents(ctx context.Context, accountAddress string, limit int64, offset int64) ([]*models.Tx, int64, error)
 	GetValidatorHistory(ctx context.Context, accountAddress string, limit int64, offset int64) ([]*models.Tx, int64, error)
+	TransactionsByEventValue(ctx context.Context, values []string, messageType string, limit int64, offset int64) ([]*models.Tx, int64, error)
 }
 
 type TxsFilter struct {
@@ -757,4 +758,95 @@ func (r *txs) getTransactionsByTypes(ctx context.Context, accountAddress string,
 	}
 
 	return data, total, nil
+}
+
+func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, messageType string, limit int64, offset int64) ([]*models.Tx, int64, error) {
+	query := `select distinct txes.hash, txes.timestamp
+	from txes
+         left join blocks on txes.block_id = blocks.id
+         left join messages on txes.id = messages.tx_id
+         left join message_types on messages.message_type_id = message_types.id
+         left join message_events on messages.id = message_events.message_id
+         left join message_event_types on message_events.message_event_type_id=message_event_types.id
+         left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
+         left join message_event_attribute_keys on message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
+	where message_types.message_type=$1 and message_event_attributes.value=ANY($2) order by txes.timestamp desc `
+	rows, err := r.db.Query(ctx, query+`limit $3 offset $4`, messageType, values, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	data := make([]*models.Tx, 0)
+	for rows.Next() {
+		var txHash string
+		var txTime time.Time
+		if err = rows.Scan(&txHash, &txTime); err != nil {
+			return nil, 0, err
+		}
+		txByHash, _, err := r.Transactions(ctx, 100, 0, &TxsFilter{TxHash: &txHash})
+		if err != nil {
+			return nil, 0, err
+		}
+
+		for _, tx := range txByHash {
+			events, err := r.getEvents(ctx, tx.ID)
+			if err != nil {
+				return nil, 0, err
+			}
+			tx.Events = events
+		}
+		data = append(data, txByHash...)
+	}
+
+	queryAll := `select distinct count(txes.hash)
+	from txes
+         left join blocks on txes.block_id = blocks.id
+         left join messages on txes.id = messages.tx_id
+         left join message_types on messages.message_type_id = message_types.id
+         left join message_events on messages.id = message_events.message_id
+         left join message_event_types on message_events.message_event_type_id=message_event_types.id
+         left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
+         left join message_event_attribute_keys on message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
+	where message_types.message_type=$1 and message_event_attributes.value=ANY($2)`
+	var total int64
+	if err = r.db.QueryRow(ctx, queryAll, messageType, values).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	return data, total, nil
+}
+
+func (r *txs) getEvents(ctx context.Context, txID uint) ([]*model.TxEvents, error) {
+	query := `select
+       message_types.message_type,
+       message_events.index,
+       message_event_types.type,
+       message_event_attributes.index,
+       message_event_attributes.value,
+       message_event_attribute_keys.key
+from txes
+         left join messages on txes.id = messages.tx_id
+         left join message_types on messages.message_type_id = message_types.id
+         left join message_events on messages.id = message_events.message_id
+         left join message_event_types on message_events.message_event_type_id=message_event_types.id
+         left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
+         left join message_event_attribute_keys on message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
+where txes.id=$1
+order by messages.message_index, message_events.index, message_event_attributes.index asc`
+	rows, err := r.db.Query(ctx, query, txID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	data := make([]*model.TxEvents, 0)
+	for rows.Next() {
+		var event model.TxEvents
+		if err = rows.Scan(&event.MessageType, &event.EventIndex, &event.Type, &event.Index, &event.Value, &event.Key); err != nil {
+			return nil, err
+		}
+		data = append(data, &event)
+	}
+	return data, nil
 }

@@ -43,6 +43,7 @@ const (
 	BlocksService_GetVotes_FullMethodName                  = "/blocks.BlocksService/GetVotes"
 	BlocksService_GetPowerEvents_FullMethodName            = "/blocks.BlocksService/GetPowerEvents"
 	BlocksService_GetValidatorHistoryEvents_FullMethodName = "/blocks.BlocksService/GetValidatorHistoryEvents"
+	BlocksService_TransactionsByEventValue_FullMethodName  = "/blocks.BlocksService/TransactionsByEventValue"
 )
 
 // BlocksServiceClient is the client API for BlocksService service.
@@ -73,6 +74,7 @@ type BlocksServiceClient interface {
 	GetVotes(ctx context.Context, in *GetVotesRequest, opts ...grpc.CallOption) (*GetVotesResponse, error)
 	GetPowerEvents(ctx context.Context, in *GetPowerEventsRequest, opts ...grpc.CallOption) (*GetPowerEventsResponse, error)
 	GetValidatorHistoryEvents(ctx context.Context, in *GetValidatorHistoryEventsRequest, opts ...grpc.CallOption) (*GetValidatorHistoryEventsResponse, error)
+	TransactionsByEventValue(ctx context.Context, in *TransactionsByEventValueRequest, opts ...grpc.CallOption) (*TransactionsByEventValueResponse, error)
 }
 
 type blocksServiceClient struct {
@@ -323,6 +325,16 @@ func (c *blocksServiceClient) GetValidatorHistoryEvents(ctx context.Context, in 
 	return out, nil
 }
 
+func (c *blocksServiceClient) TransactionsByEventValue(ctx context.Context, in *TransactionsByEventValueRequest, opts ...grpc.CallOption) (*TransactionsByEventValueResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TransactionsByEventValueResponse)
+	err := c.cc.Invoke(ctx, BlocksService_TransactionsByEventValue_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BlocksServiceServer is the server API for BlocksService service.
 // All implementations must embed UnimplementedBlocksServiceServer
 // for forward compatibility
@@ -351,6 +363,7 @@ type BlocksServiceServer interface {
 	GetVotes(context.Context, *GetVotesRequest) (*GetVotesResponse, error)
 	GetPowerEvents(context.Context, *GetPowerEventsRequest) (*GetPowerEventsResponse, error)
 	GetValidatorHistoryEvents(context.Context, *GetValidatorHistoryEventsRequest) (*GetValidatorHistoryEventsResponse, error)
+	TransactionsByEventValue(context.Context, *TransactionsByEventValueRequest) (*TransactionsByEventValueResponse, error)
 	mustEmbedUnimplementedBlocksServiceServer()
 }
 
@@ -429,6 +442,9 @@ func (UnimplementedBlocksServiceServer) GetPowerEvents(context.Context, *GetPowe
 }
 func (UnimplementedBlocksServiceServer) GetValidatorHistoryEvents(context.Context, *GetValidatorHistoryEventsRequest) (*GetValidatorHistoryEventsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetValidatorHistoryEvents not implemented")
+}
+func (UnimplementedBlocksServiceServer) TransactionsByEventValue(context.Context, *TransactionsByEventValueRequest) (*TransactionsByEventValueResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TransactionsByEventValue not implemented")
 }
 func (UnimplementedBlocksServiceServer) mustEmbedUnimplementedBlocksServiceServer() {}
 
@@ -875,6 +891,24 @@ func _BlocksService_GetValidatorHistoryEvents_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BlocksService_TransactionsByEventValue_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TransactionsByEventValueRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BlocksServiceServer).TransactionsByEventValue(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BlocksService_TransactionsByEventValue_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BlocksServiceServer).TransactionsByEventValue(ctx, req.(*TransactionsByEventValueRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BlocksService_ServiceDesc is the grpc.ServiceDesc for BlocksService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -977,6 +1011,10 @@ var BlocksService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetValidatorHistoryEvents",
 			Handler:    _BlocksService_GetValidatorHistoryEvents_Handler,
+		},
+		{
+			MethodName: "TransactionsByEventValue",
+			Handler:    _BlocksService_TransactionsByEventValue_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
