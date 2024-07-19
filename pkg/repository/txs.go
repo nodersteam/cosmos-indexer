@@ -761,8 +761,15 @@ func (r *txs) getTransactionsByTypes(ctx context.Context, accountAddress string,
 }
 
 func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, messageType string, limit int64, offset int64) ([]*models.Tx, int64, error) {
-	query := `select distinct txes.hash, txes.timestamp
-	from txes
+	params := 4
+	placeholders := make([]string, len(values))
+	for i := range values {
+		placeholders[i] = fmt.Sprintf("$%d", i+params+1)
+	}
+	inClause := strings.Join(placeholders, ", ")
+
+	query := fmt.Sprintf(`select distinct txes.hash, txes.timestamp
+from txes
          left join blocks on txes.block_id = blocks.id
          left join messages on txes.id = messages.tx_id
          left join message_types on messages.message_type_id = message_types.id
@@ -770,8 +777,30 @@ func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, mes
          left join message_event_types on message_events.message_event_type_id=message_event_types.id
          left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
          left join message_event_attribute_keys on message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
-	where message_types.message_type=$1 and message_event_attributes.value=ANY($2) order by txes.timestamp desc `
-	rows, err := r.db.Query(ctx, query+`limit $3 offset $4`, messageType, values, limit, offset)
+where message_types.message_type = $1
+  and txes.id in (
+    select txes.id
+    from txes
+             left join messages on txes.id = messages.tx_id
+             left join message_types on messages.message_type_id = message_types.id
+             left join message_events on messages.id = message_events.message_id
+             left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
+    where message_event_attributes.value in (%s)
+    group by txes.id
+    having count(distinct message_event_attributes.value) = $2::integer
+)
+order by txes.timestamp desc limit $3::integer offset $4::integer`, inClause)
+
+	args := make([]interface{}, len(values)+params)
+	args[0] = messageType
+	args[1] = len(values)
+	args[2] = limit
+	args[3] = offset
+	for i, v := range values {
+		args[i+params] = v
+	}
+
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -799,8 +828,16 @@ func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, mes
 		data = append(data, txByHash...)
 	}
 
-	queryAll := `select distinct count(txes.hash)
-	from txes
+	// calculating total count
+	params = 2
+	placeholders = make([]string, len(values))
+	for i := range values {
+		placeholders[i] = fmt.Sprintf("$%d", i+params+1)
+	}
+	inClause = strings.Join(placeholders, ", ")
+
+	queryAll := fmt.Sprintf(`select count(distinct txes.hash)
+from txes
          left join blocks on txes.block_id = blocks.id
          left join messages on txes.id = messages.tx_id
          left join message_types on messages.message_type_id = message_types.id
@@ -808,9 +845,27 @@ func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, mes
          left join message_event_types on message_events.message_event_type_id=message_event_types.id
          left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
          left join message_event_attribute_keys on message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
-	where message_types.message_type=$1 and message_event_attributes.value=ANY($2)`
+where message_types.message_type = $1
+  and txes.id in (
+    select txes.id
+    from txes
+             left join messages on txes.id = messages.tx_id
+             left join message_types on messages.message_type_id = message_types.id
+             left join message_events on messages.id = message_events.message_id
+             left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
+    where message_event_attributes.value in (%s)
+    group by txes.id
+    having count(distinct message_event_attributes.value) = $2::integer
+)`, inClause)
+	args = make([]interface{}, len(values)+params)
+	args[0] = messageType
+	args[1] = len(values)
+	for i, v := range values {
+		args[i+params] = v
+	}
+
 	var total int64
-	if err = r.db.QueryRow(ctx, queryAll, messageType, values).Scan(&total); err != nil {
+	if err = r.db.QueryRow(ctx, queryAll, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
