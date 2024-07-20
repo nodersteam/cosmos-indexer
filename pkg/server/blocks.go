@@ -581,3 +581,28 @@ func (r *blocksServer) TransactionsByEventValue(ctx context.Context,
 		},
 	}, nil
 }
+
+func (r *blocksServer) GetVotesByAccounts(ctx context.Context,
+	in *pb.GetVotesByAccountsRequest) (*pb.GetVotesByAccountsResponse, error) {
+	transactions, all, err := r.srvTx.GetVotesByAccounts(ctx, in.Accounts, in.Exclude,
+		in.VoteType, int(in.ProposalID), in.Limit.Limit, in.Limit.Offset)
+
+	if err != nil {
+		return &pb.GetVotesByAccountsResponse{}, err
+	}
+
+	data := make([]*pb.TxByHash, 0)
+	for _, tx := range transactions {
+		transaction := tx
+		data = append(data, r.txToProto(transaction))
+	}
+
+	return &pb.GetVotesByAccountsResponse{
+		Data: data,
+		Result: &pb.Result{
+			Limit:  in.Limit.Limit,
+			Offset: in.Limit.Offset,
+			All:    all,
+		},
+	}, nil
+}

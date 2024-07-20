@@ -32,6 +32,7 @@ service BlocksService {
   rpc GetPowerEvents(GetPowerEventsRequest) returns (GetPowerEventsResponse) {}
   rpc GetValidatorHistoryEvents(GetValidatorHistoryEventsRequest) returns (GetValidatorHistoryEventsResponse) {}
   rpc TransactionsByEventValue(TransactionsByEventValueRequest) returns (TransactionsByEventValueResponse) {}
+  rpc GetVotesByAccounts(GetVotesByAccountsRequest) returns (GetVotesByAccountsResponse) {}
 }
 
 
@@ -411,6 +412,19 @@ message TransactionsByEventValueRequest{
 }
 
 message TransactionsByEventValueResponse{
+  repeated TxByHash data = 1;
+  Result result = 2;
+}
+
+message GetVotesByAccountsRequest{
+  repeated string accounts = 1;
+  bool exclude = 2;
+  string vote_type = 3;
+  int32 proposalID = 4;
+  Limit limit = 5;
+}
+
+message GetVotesByAccountsResponse{
   repeated TxByHash data = 1;
   Result result = 2;
 }

@@ -33,9 +33,14 @@ type Txs interface {
 	ChartTransactionsByHour(ctx context.Context, to time.Time) (*model.TxByHourWithCount, error)
 	ChartTransactionsVolume(ctx context.Context, to time.Time) ([]*model.TxVolumeByHour, error)
 	GetVotes(ctx context.Context, accountAddress string) ([]*model.VotesTransaction, error)
-	GetPowerEvents(ctx context.Context, accountAddress string, limit int64, offset int64) ([]*models.Tx, int64, error)
-	GetValidatorHistory(ctx context.Context, accountAddress string, limit int64, offset int64) ([]*models.Tx, int64, error)
-	TransactionsByEventValue(ctx context.Context, values []string, messageType string, limit int64, offset int64) ([]*models.Tx, int64, error)
+	GetPowerEvents(ctx context.Context, accountAddress string,
+		limit int64, offset int64) ([]*models.Tx, int64, error)
+	GetValidatorHistory(ctx context.Context, accountAddress string,
+		limit int64, offset int64) ([]*models.Tx, int64, error)
+	TransactionsByEventValue(ctx context.Context, values []string, messageType string,
+		limit int64, offset int64) ([]*models.Tx, int64, error)
+	GetVotesByAccounts(ctx context.Context, accounts []string, excludeAccounts bool, voteType string,
+		proposalID int, limit int64, offset int64) ([]*models.Tx, int64, error)
 }
 
 type TxsFilter struct {
@@ -760,7 +765,8 @@ func (r *txs) getTransactionsByTypes(ctx context.Context, accountAddress string,
 	return data, total, nil
 }
 
-func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, messageType string, limit int64, offset int64) ([]*models.Tx, int64, error) {
+func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, messageType string,
+	limit int64, offset int64) ([]*models.Tx, int64, error) {
 	params := 4
 	placeholders := make([]string, len(values))
 	for i := range values {
@@ -904,4 +910,87 @@ order by messages.message_index, message_events.index, message_event_attributes.
 		data = append(data, &event)
 	}
 	return data, nil
+}
+
+func (r *txs) GetVotesByAccounts(ctx context.Context, accounts []string, excludeAccounts bool, voteType string,
+	proposalID int, limit int64, offset int64) ([]*models.Tx, int64, error) {
+	transactions, _, err := r.TransactionsByEventValue(ctx,
+		[]string{voteType, strconv.Itoa(proposalID)},
+		"/cosmos.gov.v1beta1.MsgVote", 100000, 0)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	exclude := ""
+	if excludeAccounts {
+		exclude = "NOT"
+	}
+
+	query := fmt.Sprintf(`select distinct txes.hash, txes.timestamp
+	from txes
+			 left join blocks on txes.block_id = blocks.id
+			 left join messages on txes.id = messages.tx_id
+			 left join message_types on messages.message_type_id = message_types.id
+			 left join message_events on messages.id = message_events.message_id
+			 left join message_event_types on message_events.message_event_type_id=message_event_types.id
+			 left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
+			 left join message_event_attribute_keys on message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
+	where message_types.message_type = '/cosmos.gov.v1beta1.MsgVote'
+	  and %s message_event_attributes.value=ANY($1) and message_event_attribute_keys.key='voter' and txes.hash=ANY($2)
+	order by txes.timestamp desc limit $3::integer offset $4::integer`, exclude)
+
+	txsFilter := make([]string, 0)
+	for _, tx := range transactions {
+		txsFilter = append(txsFilter, tx.Hash)
+	}
+	rows, err := r.db.Query(ctx, query, accounts, txsFilter, limit, offset)
+	if err != nil {
+		log.Err(err).Msgf("failed to fetch votes for accounts: %v", accounts)
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	data := make([]*models.Tx, 0)
+	for rows.Next() {
+		var txHash string
+		var timeStamp time.Time
+		if err = rows.Scan(&txHash, &timeStamp); err != nil {
+			return nil, 0, err
+		}
+
+		txByHash, _, err := r.Transactions(ctx, 100, 0, &TxsFilter{TxHash: &txHash})
+		if err != nil {
+			return nil, 0, err
+		}
+
+		for _, tx := range txByHash {
+			events, err := r.getEvents(ctx, tx.ID)
+			if err != nil {
+				return nil, 0, err
+			}
+			tx.Events = events
+		}
+		data = append(data, txByHash...)
+	}
+
+	// calculating total
+	queryAll := fmt.Sprintf(`select count(distinct txes.hash)
+	from txes
+			 left join blocks on txes.block_id = blocks.id
+			 left join messages on txes.id = messages.tx_id
+			 left join message_types on messages.message_type_id = message_types.id
+			 left join message_events on messages.id = message_events.message_id
+			 left join message_event_types on message_events.message_event_type_id=message_event_types.id
+			 left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
+			 left join message_event_attribute_keys on message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
+	where message_types.message_type = '/cosmos.gov.v1beta1.MsgVote'
+	  and %s message_event_attributes.value=ANY($1) and message_event_attribute_keys.key='voter' and txes.hash=ANY($2)`, exclude)
+
+	var all int64
+	row := r.db.QueryRow(ctx, queryAll, accounts, txsFilter)
+	if err = row.Scan(&all); err != nil {
+		return nil, 0, err
+	}
+
+	return data, all, nil
 }
