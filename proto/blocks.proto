@@ -31,6 +31,8 @@ service BlocksService {
   rpc GetVotes(GetVotesRequest) returns (GetVotesResponse) {}
   rpc GetPowerEvents(GetPowerEventsRequest) returns (GetPowerEventsResponse) {}
   rpc GetValidatorHistoryEvents(GetValidatorHistoryEventsRequest) returns (GetValidatorHistoryEventsResponse) {}
+  rpc TransactionsByEventValue(TransactionsByEventValueRequest) returns (TransactionsByEventValueResponse) {}
+  rpc GetVotesByAccounts(GetVotesByAccountsRequest) returns (GetVotesByAccountsResponse) {}
 }
 
 
@@ -101,6 +103,7 @@ message TxByHash {
   Block block = 8;
   repeated Fee fees = 9;
   optional TxSenderReceiver sender_receiver = 10;
+  repeated TxEvent events = 11;
 }
 
 message TxSenderReceiver {
@@ -109,6 +112,15 @@ message TxSenderReceiver {
   string receiver = 3;
   string amount = 4;
   string denom = 5;
+}
+
+message TxEvent {
+  string message_type = 1;
+  int32 event_index = 2;
+  string type = 3;
+  int32 index = 4;
+  string value = 5;
+  string key = 6;
 }
 
 message Fee {
@@ -389,6 +401,30 @@ message GetValidatorHistoryEventsRequest {
 }
 
 message GetValidatorHistoryEventsResponse{
+  repeated TxByHash data = 1;
+  Result result = 2;
+}
+
+message TransactionsByEventValueRequest{
+  repeated string values = 1;
+  string type = 2;
+  Limit limit = 3;
+}
+
+message TransactionsByEventValueResponse{
+  repeated TxByHash data = 1;
+  Result result = 2;
+}
+
+message GetVotesByAccountsRequest{
+  repeated string accounts = 1;
+  bool exclude = 2;
+  string vote_type = 3;
+  int32 proposalID = 4;
+  Limit limit = 5;
+}
+
+message GetVotesByAccountsResponse{
   repeated TxByHash data = 1;
   Result result = 2;
 }

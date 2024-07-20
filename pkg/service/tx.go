@@ -31,6 +31,10 @@ type Txs interface {
 		limit int64, offset int64) ([]*models.Tx, int64, error)
 	GetValidatorHistoryEvents(ctx context.Context, accountAddress string,
 		limit int64, offset int64) ([]*models.Tx, int64, error)
+	TransactionsByEventValue(ctx context.Context, values []string,
+		messageType string, limit int64, offset int64) ([]*models.Tx, int64, error)
+	GetVotesByAccounts(ctx context.Context, accounts []string, excludeAcc bool, voteType string,
+		proposalID int, limit int64, offset int64) ([]*models.Tx, int64, error)
 }
 
 type txs struct {
@@ -128,4 +132,14 @@ func (s *txs) GetPowerEvents(ctx context.Context, accountAddress string, limit i
 func (s *txs) GetValidatorHistoryEvents(ctx context.Context, accountAddress string,
 	limit int64, offset int64) ([]*models.Tx, int64, error) {
 	return s.txRepo.GetValidatorHistory(ctx, accountAddress, limit, offset)
+}
+
+func (s *txs) TransactionsByEventValue(ctx context.Context, values []string,
+	messageType string, limit int64, offset int64) ([]*models.Tx, int64, error) {
+	return s.txRepo.TransactionsByEventValue(ctx, values, messageType, limit, offset)
+}
+
+func (s *txs) GetVotesByAccounts(ctx context.Context, accounts []string, excludeAcc bool, voteType string,
+	proposalID int, limit int64, offset int64) ([]*models.Tx, int64, error) {
+	return s.txRepo.GetVotesByAccounts(ctx, accounts, excludeAcc, voteType, proposalID, limit, offset)
 }

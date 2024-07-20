@@ -55,3 +55,12 @@ type VotesTransaction struct {
 	Option      string    `json:"option"`
 	Weight      string    `json:"weight"`
 }
+
+type TxEvents struct {
+	MessageType string `json:"message_type,omitempty"`
+	EventIndex  int    `json:"event_index"`
+	Type        string `json:"type,omitempty"`
+	Index       int    `json:"index,omitempty"`
+	Value       string `json:"value,omitempty"`
+	Key         string `json:"key,omitempty"`
+}
