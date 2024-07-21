@@ -83,6 +83,7 @@ void deployApplication() {
             if (Jenkins.instance.getNode(processedString).toComputer().isOnline()) {
                 node(processedString) {
                     echo "${processedString}"
+                    env.agent = "${processedString}"
                     dockerLogin()
                     createDockerNetwork()
                     runPostgres()
@@ -99,7 +100,7 @@ void createDockerNetwork() {
     def networkStatus = sh(script: "docker network ls | grep ${env.DOCKER_NET_NAME} && echo true || echo false", returnStdout: true).trim()
     if (networkStatus.contains("false")) {
         sh script: "docker network create --driver=bridge --subnet=10.5.0.0/16 --gateway=10.5.0.1 ${env.DOCKER_NET_NAME}",
-           label: "Create docker network"
+                label: "Create docker network"
     }
 }
 
@@ -164,6 +165,17 @@ void runMongo() {
 
 void runApplication() {
     def appStatus = sh(script: "docker ps -a | grep ${env.DOCKER_APP} && echo true || echo false", returnStdout: true).trim()
+    if (env.agent == "celestia") {
+        env.probeRpc = "http://65.109.54.91:11657"
+        env.probeAccountPrefix = "celestia"
+        env.probeChainID = "celestia"
+        env.probeChainName = "celestia"
+    } else if (env.agent == "dymension") {
+        env.probeRpc = "http://65.109.54.91:26657"
+        env.probeAccountPrefix = "dym"
+        env.probeChainID = "dymension_1100-1"
+        env.probeChainName = "dymension"
+    }
     if (appStatus.contains("true")) {
         sh script: "docker rm -fv ${env.DOCKER_APP}", label: "Remove ${env.DOCKER_APP} container"
     }
@@ -185,10 +197,10 @@ void runApplication() {
               --base.rpc-workers 1 \
               --base.index-transactions true \
               --base.index-block-events true \
-              --probe.rpc http://65.109.54.91:11657  \
-              --probe.account-prefix celestia \
-              --probe.chain-id celestia \
-              --probe.chain-name celestia \
+              --probe.rpc ${env.probeRpc} \
+              --probe.account-prefix ${env.probeAccountPrefix} \
+              --probe.chain-id ${env.probeChainID} \
+              --probe.chain-name ${env.probeChainName} \
               --database.host ${env.POSTGRES_CONTAINER} \
               --database.database postgres \
               --database.user taxuser \
