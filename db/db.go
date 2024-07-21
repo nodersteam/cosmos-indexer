@@ -101,6 +101,24 @@ func migrateIndexes(db *gorm.DB) error {
 		return err
 	}
 
+	err = db.Raw(`CREATE INDEX if not exists idx_txes_id ON txes(id);
+		CREATE INDEX if not exists idx_messages_tx_id ON messages(tx_id);
+		CREATE INDEX if not exists idx_message_types_id ON message_types(id);
+		CREATE INDEX if not exists idx_message_events_message_id ON message_events(message_id);
+		CREATE INDEX if not exists idx_txes_block_id ON txes(block_id);
+		CREATE INDEX if not exists idx_messages_message_type_id ON messages(message_type_id);
+		CREATE INDEX if not exists idx_message_event_attributes_message_event_id ON message_event_attributes(message_event_id);
+		CREATE INDEX if not exists idx_message_event_types_id ON message_event_types(id);
+		CREATE INDEX if not exists idx_txes_hash ON txes(hash);
+		CREATE INDEX if not exists idx_txes_timestamp ON txes(timestamp);
+		CREATE INDEX if not exists idx_message_types_message_type ON message_types(message_type);
+		CREATE INDEX if not exists idx_message_event_attributes_message_event_attribute_key_id ON message_event_attributes(message_event_attribute_key_id);
+		CREATE INDEX if not exists idx_message_event_attribute_keys_key ON message_event_attribute_keys(key);		
+`).Error
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
