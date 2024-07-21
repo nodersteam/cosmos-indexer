@@ -778,7 +778,9 @@ func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, mes
 		  SELECT txes.id
 		  FROM txes
 		  LEFT JOIN messages ON txes.id = messages.tx_id
-		  LEFT JOIN message_event_attributes ON messages.id = message_event_attributes.message_event_id
+		  left join message_types on messages.message_type_id = message_types.id
+		  left join message_events on messages.id = message_events.message_id
+		  left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
 		  WHERE message_event_attributes.value IN (%s)
 		  GROUP BY txes.id
 		  HAVING COUNT(DISTINCT message_event_attributes.value) = $2::integer
@@ -846,7 +848,9 @@ func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, mes
 			  SELECT txes.id
 			  FROM txes
 			  LEFT JOIN messages ON txes.id = messages.tx_id
-			  LEFT JOIN message_event_attributes ON messages.id = message_event_attributes.message_event_id
+              left join message_types on messages.message_type_id = message_types.id
+              left join message_events on messages.id = message_events.message_id
+              left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
 			  WHERE message_event_attributes.value IN (%s)
 			  GROUP BY txes.id
 			  HAVING COUNT(DISTINCT message_event_attributes.value) = $2::integer
