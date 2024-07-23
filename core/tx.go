@@ -10,7 +10,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DefiantLabs/probe/client"
 	coretypes "github.com/cometbft/cometbft/rpc/core/types"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/multisig"
 	cryptoTypes "github.com/cosmos/cosmos-sdk/crypto/types"
@@ -22,6 +21,7 @@ import (
 	"github.com/nodersteam/cosmos-indexer/db/models"
 	"github.com/nodersteam/cosmos-indexer/filter"
 	"github.com/nodersteam/cosmos-indexer/util"
+	"github.com/nodersteam/probe/client"
 	"gorm.io/gorm"
 )
 

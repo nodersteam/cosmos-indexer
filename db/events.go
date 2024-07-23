@@ -127,7 +127,6 @@ func IndexBlockEvents(db *gorm.DB, dryRun bool, blockDBWrapper *BlockDBWrapper, 
 				config.Log.Error("Error creating begin block events.", err)
 				return err
 			}
-
 			var allAttributes []*models.BlockEventAttribute
 			for index := range blockDBWrapper.BeginBlockEvents {
 				currAttributes := blockDBWrapper.BeginBlockEvents[index].Attributes
@@ -146,7 +145,8 @@ func IndexBlockEvents(db *gorm.DB, dryRun bool, blockDBWrapper *BlockDBWrapper, 
 				for attrIndex := range currAttributes {
 					currAttributes[attrIndex].BlockEventID = blockDBWrapper.EndBlockEvents[index].BlockEvent.ID
 					currAttributes[attrIndex].BlockEvent = blockDBWrapper.EndBlockEvents[index].BlockEvent
-					currAttributes[attrIndex].BlockEventAttributeKey = blockDBWrapper.UniqueBlockEventAttributeKeys[currAttributes[attrIndex].BlockEventAttributeKey.Key]
+					currAttributes[attrIndex].BlockEventAttributeKey =
+						blockDBWrapper.UniqueBlockEventAttributeKeys[currAttributes[attrIndex].BlockEventAttributeKey.Key]
 				}
 				for ii := range currAttributes {
 					allAttributes = append(allAttributes, &currAttributes[ii])
@@ -159,10 +159,11 @@ func IndexBlockEvents(db *gorm.DB, dryRun bool, blockDBWrapper *BlockDBWrapper, 
 					// Force update of value
 					DoUpdates: clause.AssignmentColumns([]string{"value"}),
 				}).Create(&allAttributes).Error; err != nil {
-					config.Log.Error("Error creating begin block event attributes.", err)
+					config.Log.Error("Error creating begin block event attributes. continue", err)
 					return err
 				}
 			}
+
 		}
 
 		return nil
