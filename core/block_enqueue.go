@@ -2,6 +2,7 @@ package core
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"os"
 	"sort"
@@ -219,11 +220,13 @@ func GenerateDefaultEnqueueFunction(db *gorm.DB, cfg config.IndexConfig, client 
 		config.Log.Info("Reindexing is disabled, skipping blocks that have already been indexed")
 		// We need to pick up where we last left off, find blocks after start and skip already indexed blocks
 		blocksFromStart, err = dbTypes.GetBlocksFromStart(db, chainID, startBlock, endBlock)
-
 		if err != nil {
 			return nil, err
 		}
-
+		if len(blocksFromStart) > 0 {
+			config.Log.Info(fmt.Sprintf("start blocks: %d", blocksFromStart[0].Height))
+			startBlock = blocksFromStart[0].Height
+		}
 	} else {
 		config.Log.Info("Reindexing is enabled starting from initial start height")
 	}

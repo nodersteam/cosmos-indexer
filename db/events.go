@@ -32,9 +32,15 @@ func IndexBlockEvents(db *gorm.DB, dryRun bool, blockDBWrapper *BlockDBWrapper, 
 		blockDBWrapper.Block.BlockEventsIndexed = true
 
 		if err := dbTransaction.
-			Where(models.Block{Height: blockDBWrapper.Block.Height, ChainID: blockDBWrapper.Block.ChainID}).
-			Assign(models.Block{BlockEventsIndexed: true, TimeStamp: blockDBWrapper.Block.TimeStamp, ProposerConsAddress: blockDBWrapper.Block.ProposerConsAddress}).
-			FirstOrCreate(&blockDBWrapper.Block).Error; err != nil {
+			Where(models.Block{Height: blockDBWrapper.Block.Height,
+				ChainID: blockDBWrapper.Block.ChainID}).
+			Assign(models.Block{BlockEventsIndexed: true,
+				TimeStamp:           blockDBWrapper.Block.TimeStamp,
+				ProposerConsAddress: blockDBWrapper.Block.ProposerConsAddress}).
+			FirstOrCreate(&blockDBWrapper.Block).Clauses(
+			clause.OnConflict{
+				DoNothing: true,
+			}).Error; err != nil {
 			config.Log.Error("Error getting/creating block DB object.", err)
 			return err
 		}
