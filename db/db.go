@@ -323,6 +323,11 @@ func IndexNewBlock(db *gorm.DB, block models.Block, txs []TxDBWrapper, indexerCo
 		block.ProposerConsAddressID = consAddress.ID
 		block.ProposerConsAddress = consAddress
 		block.TxIndexed = true
+
+		signaturesCopy := make([]models.BlockSignature, len(block.Signatures))
+		copy(signaturesCopy, block.Signatures)
+		block.Signatures = make([]models.BlockSignature, 0)
+
 		if err := dbTransaction.
 			Where(models.Block{Height: block.Height, ChainID: block.ChainID}).
 			Assign(models.Block{TxIndexed: true, TimeStamp: block.TimeStamp}).
@@ -330,6 +335,21 @@ func IndexNewBlock(db *gorm.DB, block models.Block, txs []TxDBWrapper, indexerCo
 			config.Log.Error("Error getting/creating block DB object in events", err)
 			return err
 		}
+
+		// saving signatures
+		for ind, _ := range signaturesCopy {
+			signaturesCopy[ind].BlockID = uint64(block.ID)
+		}
+		err := dbTransaction.Clauses(
+			clause.OnConflict{
+				Columns:   []clause.Column{{Name: "block_id"}, {Name: "validator_address"}},
+				UpdateAll: true,
+			}).Create(signaturesCopy).Error
+		if err != nil {
+			config.Log.Error("Error creating block signatures in events.", err)
+			return err
+		}
+		block.Signatures = signaturesCopy
 
 		// pull txes and insert them
 		uniqueTxes := make(map[string]models.Tx)
