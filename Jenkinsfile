@@ -5,30 +5,14 @@ pipeline {
     triggers {
         githubPush()
     }
+    options {
+        skipDefaultCheckout()
+    }
 
     stages {
-        stage('Checkout Code') {
-            steps {
-                script {
-                    env.DOCKER_APP = "${JOB_NAME}"
-                    env.DOCKER_NET_NAME = "vpcbr"
-                    env.POSTGRES_CONTAINER = "${env.DOCKER_APP}_postgres"
-                    env.REDIS_CONTAINER = "redis"
-                    env.GIT_TAG = sh(returnStdout: true, script: "git tag --contains | head -1").trim()
-                    env.NEXUS_REGISTRY = "nexus.noders.team:5002"
-                    env.IMAGE_NAME = "${env.NEXUS_REGISTRY}/${env.DOCKER_APP}:${env.GIT_TAG}"
-                }
-            }
-        }
-        stage('Build Docker Image') {
-            steps {
-                checkout scm
-                buildApplication()
-            }
-        }
         stage('Deploy') {
             steps {
-                deployApplication()
+                buildAndDeployApplication()
             }
         }
     }
@@ -71,7 +55,14 @@ void buildApplication() {
     sh script: "docker push ${env.IMAGE_NAME}"
 }
 
-void deployApplication() {
+void buildAndDeployApplication() {
+    env.DOCKER_APP = "${JOB_NAME}"
+    env.DOCKER_NET_NAME = "vpcbr"
+    env.POSTGRES_CONTAINER = "${env.DOCKER_APP}_postgres"
+    env.REDIS_CONTAINER = "redis"
+    env.GIT_TAG = sh(returnStdout: true, script: "git tag --contains | head -1").trim()
+    env.NEXUS_REGISTRY = "nexus.noders.team:5002"
+
     // Get agents by label
     env.nodes = Jenkins.instance.getLabel('DEPLOY').getNodes().collect { it.getNodeName() }
     def firstString = env.nodes - ~/^\[\s*/
@@ -84,7 +75,16 @@ void deployApplication() {
                 node(processedString) {
                     echo "${processedString}"
                     env.agent = "${processedString}"
+                    if (env.NODE_NAME == "dymension") {
+                        checkoutBranch("feature/dymension-updates")
+                        env.IMAGE_NAME = "${env.NEXUS_REGISTRY}/${env.DOCKER_APP}:dymension-updates"
+                    } else {
+                        checkout scm
+                        env.IMAGE_NAME = "${env.NEXUS_REGISTRY}/${env.DOCKER_APP}:${env.GIT_TAG}"
+                    }
                     dockerLogin()
+                    sh "docker build -t ${env.IMAGE_NAME} --build-arg TARGETPLATFORM=linux/amd64 ."
+                    sh script: "docker push ${env.IMAGE_NAME}"
                     createDockerNetwork()
                     runPostgres()
                     runRedis()
@@ -224,4 +224,12 @@ void cleanUp() {
     } catch (Exception e) {
         echo 'Error cleaning dirs: ' + e
     }
+}
+
+void checkoutBranch(branch) {
+    checkout ([$class: 'GitSCM',
+               branches: [[ name: "${branch}" ]],
+               userRemoteConfigs: [[
+               credentialsId: 'robert_gh',
+               url: "https://github.com/nodersteam/cosmos-indexer.git"]]])
 }
