@@ -1,6 +1,7 @@
 package db
 
 import (
+	"fmt"
 	"github.com/nodersteam/cosmos-indexer/config"
 	"github.com/nodersteam/cosmos-indexer/db/models"
 	"gorm.io/gorm"
@@ -31,12 +32,42 @@ func IndexBlockEvents(db *gorm.DB, dryRun bool, blockDBWrapper *BlockDBWrapper, 
 		// create block if it doesn't exist
 		blockDBWrapper.Block.BlockEventsIndexed = true
 
-		if err := dbTransaction.
-			Where(models.Block{Height: blockDBWrapper.Block.Height, ChainID: blockDBWrapper.Block.ChainID}).
-			Assign(models.Block{BlockEventsIndexed: true, TimeStamp: blockDBWrapper.Block.TimeStamp, ProposerConsAddress: blockDBWrapper.Block.ProposerConsAddress}).
-			FirstOrCreate(&blockDBWrapper.Block).Error; err != nil {
+		if len(blockDBWrapper.Block.Signatures) == 0 {
+			config.Log.Warn(fmt.Sprintf("No signatures found in block. %d", blockDBWrapper.Block.Height))
+		}
+
+		signaturesCopy := make([]models.BlockSignature, len(blockDBWrapper.Block.Signatures))
+		copy(signaturesCopy, blockDBWrapper.Block.Signatures)
+		blockDBWrapper.Block.Signatures = make([]models.BlockSignature, 0)
+
+		tx := dbTransaction.
+			Where(models.Block{Height: blockDBWrapper.Block.Height,
+				ChainID: blockDBWrapper.Block.ChainID}).
+			Assign(models.Block{BlockEventsIndexed: true,
+				TimeStamp:           blockDBWrapper.Block.TimeStamp,
+				ProposerConsAddress: blockDBWrapper.Block.ProposerConsAddress})
+		err := tx.FirstOrCreate(&blockDBWrapper.Block).Error
+		if err != nil {
 			config.Log.Error("Error getting/creating block DB object.", err)
 			return err
+		}
+
+		// saving signatures
+		if len(signaturesCopy) > 0 {
+			for ind, _ := range signaturesCopy {
+				signaturesCopy[ind].BlockID = uint64(blockDBWrapper.Block.ID)
+			}
+
+			err = dbTransaction.Clauses(
+				clause.OnConflict{
+					Columns:   []clause.Column{{Name: "block_id"}, {Name: "validator_address"}},
+					UpdateAll: true,
+				}).Create(signaturesCopy).Error
+			if err != nil {
+				config.Log.Error("Error creating block signatures.", err)
+				return err
+			}
+			blockDBWrapper.Block.Signatures = signaturesCopy
 		}
 
 		var uniqueBlockEventTypes []models.BlockEventType

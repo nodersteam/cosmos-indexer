@@ -222,7 +222,9 @@ func GetDBChainID(db *gorm.DB, chain models.Chain) (uint, error) {
 func GetHighestIndexedBlock(db *gorm.DB, chainID uint) models.Block {
 	var block models.Block
 	// this can potentially be optimized by getting max first and selecting it (this gets translated into a select * limit 1)
-	db.Table("blocks").Where("chain_id = ?::int AND tx_indexed = true AND time_stamp != '0001-01-01T00:00:00.000Z'", chainID).Order("height desc").First(&block)
+	db.Table("blocks").
+		Where("chain_id = ?::int AND tx_indexed = true AND time_stamp != '0001-01-01T00:00:00.000Z'", chainID).
+		Order("height desc").First(&block)
 	return block
 }
 
@@ -234,6 +236,8 @@ func GetBlocksFromStart(db *gorm.DB, chainID uint, startHeight int64, endHeight 
 	if endHeight != -1 {
 		initialWhere = initialWhere.Where("height <= ?", endHeight)
 	}
+
+	initialWhere = db.Order("height desc").Limit(1)
 
 	if err := initialWhere.Find(&blocks).Error; err != nil {
 		return nil, err
@@ -319,13 +323,33 @@ func IndexNewBlock(db *gorm.DB, block models.Block, txs []TxDBWrapper, indexerCo
 		block.ProposerConsAddressID = consAddress.ID
 		block.ProposerConsAddress = consAddress
 		block.TxIndexed = true
+
+		signaturesCopy := make([]models.BlockSignature, len(block.Signatures))
+		copy(signaturesCopy, block.Signatures)
+		block.Signatures = make([]models.BlockSignature, 0)
+
 		if err := dbTransaction.
 			Where(models.Block{Height: block.Height, ChainID: block.ChainID}).
 			Assign(models.Block{TxIndexed: true, TimeStamp: block.TimeStamp}).
 			FirstOrCreate(&block).Error; err != nil {
-			config.Log.Error("Error getting/creating block DB object.", err)
+			config.Log.Error("Error getting/creating block DB object in events", err)
 			return err
 		}
+
+		// saving signatures
+		for ind, _ := range signaturesCopy {
+			signaturesCopy[ind].BlockID = uint64(block.ID)
+		}
+		err := dbTransaction.Clauses(
+			clause.OnConflict{
+				Columns:   []clause.Column{{Name: "block_id"}, {Name: "validator_address"}},
+				UpdateAll: true,
+			}).Create(signaturesCopy).Error
+		if err != nil {
+			config.Log.Error("Error creating block signatures in events.", err)
+			return err
+		}
+		block.Signatures = signaturesCopy
 
 		// pull txes and insert them
 		uniqueTxes := make(map[string]models.Tx)
