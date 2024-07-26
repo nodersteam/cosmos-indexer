@@ -4,6 +4,7 @@ import (
 	probeClient "github.com/DefiantLabs/probe/client"
 	probeQuery "github.com/DefiantLabs/probe/query"
 	coretypes "github.com/cometbft/cometbft/rpc/core/types"
+	types "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/query"
 	txTypes "github.com/cosmos/cosmos-sdk/types/tx"
 	"github.com/nodersteam/cosmos-indexer/config"
@@ -40,31 +41,42 @@ func (c *chainRPC) GetBlock(height int64) (*coretypes.ResultBlock, error) {
 }
 
 func (c *chainRPC) GetTxsByBlockHeight(height int64) (*txTypes.GetTxsEventResponse, error) {
-	pg := query.PageRequest{Limit: 100, CountTotal: true, Offset: 0}
-	options := probeQuery.QueryOptions{Height: height, Pagination: &pg}
-	query := probeQuery.Query{Client: c.cl, Options: &options}
-	resp, err := query.TxByHeight(c.cl.Codec)
+	txs := make([]*txTypes.Tx, 0)
+	txsResponses := make([]*types.TxResponse, 0)
+
+	limit := uint64(100)
+	q := probeQuery.Query{Client: c.cl, Options: &probeQuery.QueryOptions{Height: height,
+		Pagination: &query.PageRequest{Limit: limit, CountTotal: true, Offset: 0},
+	}}
+	resp, err := q.TxByHeight(c.cl.Codec)
 	if err != nil {
 		return nil, err
 	}
 
-	// handle pagination if needed
-	if resp != nil {
-		// if there are more total objects than we have so far, keep going
-		for resp.Total > uint64(len(resp.Txs)) {
-			query.Options.Pagination.Offset = uint64(len(resp.Txs))
-			chunkResp, err := query.TxByHeight(c.cl.Codec)
-			if err != nil {
-				config.Log.Errorf("error getting tx by height %d %s", height, err.Error())
-				continue
-			}
-			resp.Txs = append(resp.Txs, chunkResp.Txs...)
-			resp.TxResponses = append(resp.TxResponses, chunkResp.TxResponses...)
+	txs = append(txs, resp.Txs...)
+	txsResponses = append(txsResponses, resp.TxResponses...)
+
+	for resp.Total > uint64(len(txs)) {
+		q = probeQuery.Query{Client: c.cl,
+			Options: &probeQuery.QueryOptions{Height: height,
+				Pagination: &query.PageRequest{Limit: limit, Offset: uint64(len(txs))},
+			}}
+
+		chunkResp, err := q.TxByHeight(c.cl.Codec)
+		if err != nil {
+			config.Log.Errorf("error getting tx by height %d %s", height, err.Error())
+			continue
 		}
+		txs = append(txs, chunkResp.Txs...)
+		txsResponses = append(txsResponses, chunkResp.TxResponses...)
 	}
 
-	config.Log.Infof("Total fetched transactions for block %d is %d %d", height, len(resp.Txs), len(resp.TxResponses))
-	return resp, nil
+	// TODO unwrap to internal type
+	config.Log.Infof("Total fetched transactions for block %d is %d %d", height, len(txs), len(txsResponses))
+	return &txTypes.GetTxsEventResponse{
+		Txs:         txs,
+		TxResponses: txsResponses,
+	}, nil
 }
 
 func (c *chainRPC) IsCatchingUp() (bool, error) {

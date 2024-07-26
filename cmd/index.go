@@ -729,7 +729,7 @@ func (idxr *Indexer) processBlocks(wg *sync.WaitGroup,
 			var err error
 
 			if blockData.GetTxsResponse != nil {
-				config.Log.Info("Processing TXs from RPC TX Search response")
+				config.Log.Infof("Processing TXs from RPC TX Search response size: %d", len(blockData.GetTxsResponse.Txs))
 				txDBWrappers, _, err = core.ProcessRPCTXs(idxr.db, idxr.cl, idxr.messageTypeFilters, blockData.GetTxsResponse)
 			} else if blockData.BlockResultsData != nil {
 				config.Log.Info("Processing TXs from BlockResults search response")
