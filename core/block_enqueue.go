@@ -3,6 +3,7 @@ package core
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/nodersteam/cosmos-indexer/clients"
 	"math"
 	"os"
 	"sort"
@@ -13,7 +14,6 @@ import (
 	"github.com/nodersteam/cosmos-indexer/config"
 	dbTypes "github.com/nodersteam/cosmos-indexer/db"
 	"github.com/nodersteam/cosmos-indexer/db/models"
-	"github.com/nodersteam/cosmos-indexer/rpc"
 	"github.com/nodersteam/cosmos-indexer/util"
 	"gorm.io/gorm"
 )
@@ -26,7 +26,8 @@ type EnqueueData struct {
 	IndexTransactions bool
 }
 
-func GenerateBlockFileEnqueueFunction(db *gorm.DB, cfg config.IndexConfig, client *client.ChainClient, chainID uint, blockInputFile string) (func(chan *EnqueueData) error, error) {
+func GenerateBlockFileEnqueueFunction(cfg config.IndexConfig,
+	blockInputFile string, rpcClient clients.ChainRPC) (func(chan *EnqueueData) error, error) {
 	return func(blockChan chan *EnqueueData) error {
 		plan, err := os.ReadFile(blockInputFile)
 		if err != nil {
@@ -60,7 +61,7 @@ func GenerateBlockFileEnqueueFunction(db *gorm.DB, cfg config.IndexConfig, clien
 		sort.Slice(blocksToIndex, func(i, j int) bool { return blocksToIndex[i] < blocksToIndex[j] })
 
 		// Get latest block height and check to see if we are trying to index blocks outside range
-		earliestBlock, latestBlock, err := rpc.GetEarliestAndLatestBlockHeights(client)
+		earliestBlock, latestBlock, err := rpcClient.GetEarliestAndLatestBlockHeights()
 		if err != nil {
 			config.Log.Fatal("Error getting blockchain latest height. Err: %v", err)
 		}
@@ -154,7 +155,7 @@ func GenerateMsgTypeEnqueueFunction(db *gorm.DB, cfg config.IndexConfig, chainID
 // If reindexing is disabled, it will not reindex blocks that have already been indexed. This means it may skip around finding blocks that have not been
 // indexed according to the current configuration.
 // If failed block reattempts are enabled, it will enqueue those according to the passed in configuration as well.
-func GenerateDefaultEnqueueFunction(db *gorm.DB, cfg config.IndexConfig, client *client.ChainClient, chainID uint) (func(chan *EnqueueData) error, error) {
+func GenerateDefaultEnqueueFunction(db *gorm.DB, cfg config.IndexConfig, client *client.ChainClient, chainID uint, rpcClient clients.ChainRPC) (func(chan *EnqueueData) error, error) {
 	var failedBlockEnqueueData []*EnqueueData
 	if cfg.Base.ReattemptFailedBlocks {
 		var failedEventBlocks []models.FailedEventBlock
@@ -280,7 +281,7 @@ func GenerateDefaultEnqueueFunction(db *gorm.DB, cfg config.IndexConfig, client 
 				// This is the latest block height available on the Node.
 
 				var err error
-				latestBlock, err = rpc.GetLatestBlockHeightWithRetry(client, cfg.Base.RequestRetryAttempts, cfg.Base.RequestRetryMaxWait)
+				latestBlock, err = rpcClient.GetLatestBlockHeightWithRetry(cfg.Base.RequestRetryAttempts, cfg.Base.RequestRetryMaxWait)
 				if err != nil {
 					config.Log.Error("Error getting blockchain latest height. Err: %v", err)
 					return err

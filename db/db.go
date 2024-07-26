@@ -406,6 +406,7 @@ func IndexNewBlock(db *gorm.DB, block models.Block, txs []TxDBWrapper, indexerCo
 		}
 
 		var txesSlice []models.Tx
+		config.Log.Infof("Unique Txs size %d for block %d", len(uniqueTxes), block.Height)
 		for _, tx := range uniqueTxes {
 
 			// create auth_info address if it doesn't exist
@@ -493,6 +494,7 @@ func IndexNewBlock(db *gorm.DB, block models.Block, txs []TxDBWrapper, indexerCo
 		}
 
 		if len(txesSlice) != 0 {
+			config.Log.Infof("TxesSlice size %d for block %d", len(txesSlice), block.Height)
 			if err := dbTransaction.Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "hash"}},
 				DoUpdates: clause.AssignmentColumns([]string{"code", "block_id"}),

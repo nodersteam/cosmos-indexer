@@ -1,6 +1,7 @@
 package core
 
 import (
+	"github.com/nodersteam/cosmos-indexer/clients"
 	"net/http"
 	"sync"
 
@@ -13,7 +14,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// Wrapper types for gathering full dataset.
 type IndexerBlockEventData struct {
 	BlockData                *ctypes.ResultBlock
 	BlockResultsData         *ctypes.ResultBlockResults
@@ -24,12 +24,39 @@ type IndexerBlockEventData struct {
 	IndexTransactions        bool
 }
 
-// This function is responsible for making all RPC requests to the chain needed for later processing.
+type BlockRPCWorker interface {
+	Worker(wg *sync.WaitGroup, blockEnqueueChan chan *EnqueueData, outputChannel chan IndexerBlockEventData)
+}
+
+type blockRPCWorker struct {
+	chainStringID string
+	cfg           *config.IndexConfig
+	chainClient   *client.ChainClient
+	db            *gorm.DB
+	rpcClient     clients.ChainRPC
+}
+
+func NewBlockRPCWorker(
+	chainStringID string,
+	cfg *config.IndexConfig,
+	chainClient *client.ChainClient,
+	db *gorm.DB,
+	rpcClient clients.ChainRPC) BlockRPCWorker {
+	return &blockRPCWorker{
+		chainStringID: chainStringID,
+		cfg:           cfg,
+		chainClient:   chainClient,
+		db:            db,
+		rpcClient:     rpcClient,
+	}
+}
+
+// Worker This function is responsible for making all RPC requests to the chain needed for later processing.
 // The indexer relies on a number of RPC endpoints for full block data, including block event and transaction searches.
-func BlockRPCWorker(wg *sync.WaitGroup, blockEnqueueChan chan *EnqueueData, chainID uint, chainStringID string, cfg *config.IndexConfig, chainClient *client.ChainClient, db *gorm.DB, outputChannel chan IndexerBlockEventData) {
+func (w *blockRPCWorker) Worker(wg *sync.WaitGroup, blockEnqueueChan chan *EnqueueData, outputChannel chan IndexerBlockEventData) {
 	defer wg.Done()
 	rpcClient := rpc.URIClient{
-		Address: chainClient.Config.RPCAddr,
+		Address: w.chainClient.Config.RPCAddr,
 		Client:  &http.Client{},
 	}
 
@@ -49,15 +76,15 @@ func BlockRPCWorker(wg *sync.WaitGroup, blockEnqueueChan chan *EnqueueData, chai
 		}
 
 		// Get the block from the RPC
-		blockData, err := rpc.GetBlock(chainClient, block.Height)
+		blockData, err := w.rpcClient.GetBlock(block.Height)
 		if err != nil {
 			// This is the only response we continue on. If we can't get the block, we can't index anything.
 			config.Log.Errorf("Error getting block %v from RPC. Err: %v", block, err)
-			err := dbTypes.UpsertFailedEventBlock(db, block.Height, chainStringID, cfg.Probe.ChainName)
+			err := dbTypes.UpsertFailedEventBlock(w.db, block.Height, w.chainStringID, w.cfg.Probe.ChainName)
 			if err != nil {
 				config.Log.Fatal("Failed to insert failed block event", err)
 			}
-			err = dbTypes.UpsertFailedBlock(db, block.Height, chainStringID, cfg.Probe.ChainName)
+			err = dbTypes.UpsertFailedBlock(w.db, block.Height, w.chainStringID, w.cfg.Probe.ChainName)
 			if err != nil {
 				config.Log.Fatal("Failed to insert failed block", err)
 			}
@@ -67,11 +94,12 @@ func BlockRPCWorker(wg *sync.WaitGroup, blockEnqueueChan chan *EnqueueData, chai
 		currentHeightIndexerData.BlockData = blockData
 
 		if block.IndexBlockEvents {
-			bresults, err := rpc.GetBlockResultWithRetry(rpcClient, block.Height, cfg.Base.RequestRetryAttempts, cfg.Base.RequestRetryMaxWait)
+			bresults, err := rpc.GetBlockResultWithRetry(rpcClient,
+				block.Height, w.cfg.Base.RequestRetryAttempts, w.cfg.Base.RequestRetryMaxWait)
 
 			if err != nil {
 				config.Log.Errorf("Error getting block results for block %v from RPC. Err: %v", block, err)
-				err := dbTypes.UpsertFailedEventBlock(db, block.Height, chainStringID, cfg.Probe.ChainName)
+				err := dbTypes.UpsertFailedEventBlock(w.db, block.Height, w.chainStringID, w.cfg.Probe.ChainName)
 				if err != nil {
 					config.Log.Fatal("Failed to insert failed block event", err)
 				}
@@ -83,17 +111,18 @@ func BlockRPCWorker(wg *sync.WaitGroup, blockEnqueueChan chan *EnqueueData, chai
 		}
 
 		if block.IndexTransactions {
-			txsEventResp, err := rpc.GetTxsByBlockHeight(chainClient, block.Height)
+			txsEventResp, err := w.rpcClient.GetTxsByBlockHeight(block.Height)
 
 			if err != nil {
 				// Attempt to get block results to attempt an in-app codec decode of transactions.
 				if currentHeightIndexerData.BlockResultsData == nil {
 
-					bresults, err := rpc.GetBlockResultWithRetry(rpcClient, block.Height, cfg.Base.RequestRetryAttempts, cfg.Base.RequestRetryMaxWait)
+					bresults, err := rpc.GetBlockResultWithRetry(rpcClient, block.Height,
+						w.cfg.Base.RequestRetryAttempts, w.cfg.Base.RequestRetryMaxWait)
 
 					if err != nil {
 						config.Log.Errorf("Error getting txs for block %v from RPC. Err: %v", block, err)
-						err := dbTypes.UpsertFailedBlock(db, block.Height, chainStringID, cfg.Probe.ChainName)
+						err := dbTypes.UpsertFailedBlock(w.db, block.Height, w.chainStringID, w.cfg.Probe.ChainName)
 						if err != nil {
 							config.Log.Fatal("Failed to insert failed block", err)
 						}

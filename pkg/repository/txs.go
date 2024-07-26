@@ -384,6 +384,7 @@ func (r *txs) Transactions(ctx context.Context, limit int64, offset int64, filte
 		row := r.db.QueryRow(ctx, queryBlock, *filter.TxBlockHeight)
 		if err = row.Scan(&blockID); err != nil {
 			log.Err(err).Msgf("queryBlock error")
+			return nil, 0, err
 		}
 	}
 
