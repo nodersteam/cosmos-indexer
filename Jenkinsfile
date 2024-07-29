@@ -80,7 +80,9 @@ void buildAndDeployApplication() {
                         env.IMAGE_NAME = "${env.NEXUS_REGISTRY}/${env.DOCKER_APP}:dymension-updates"
                     } else {
                         checkout scm
-                        env.IMAGE_NAME = "${env.NEXUS_REGISTRY}/${env.DOCKER_APP}:${env.GIT_TAG}"
+                        env.TAG = sh(script: 'git describe --tags', returnStdout: true).trim()
+                        echo "The current tag is ${env.TAG}"
+                        env.IMAGE_NAME = "${env.NEXUS_REGISTRY}/${env.DOCKER_APP}:${env.TAG}"
                     }
                     dockerLogin()
                     sh "docker build -t ${env.IMAGE_NAME} --build-arg TARGETPLATFORM=linux/amd64 ."
