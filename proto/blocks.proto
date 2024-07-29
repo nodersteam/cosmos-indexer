@@ -407,7 +407,7 @@ message GetValidatorHistoryEventsResponse{
 
 message TransactionsByEventValueRequest{
   repeated string values = 1;
-  string type = 2;
+  repeated string type = 2;
   Limit limit = 3;
 }
 
