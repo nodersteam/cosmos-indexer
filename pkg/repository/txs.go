@@ -37,7 +37,7 @@ type Txs interface {
 		limit int64, offset int64) ([]*models.Tx, int64, error)
 	GetValidatorHistory(ctx context.Context, accountAddress string,
 		limit int64, offset int64) ([]*models.Tx, int64, error)
-	TransactionsByEventValue(ctx context.Context, values []string, messageType string,
+	TransactionsByEventValue(ctx context.Context, values []string, messageType []string,
 		limit int64, offset int64) ([]*models.Tx, int64, error)
 	GetVotesByAccounts(ctx context.Context, accounts []string, excludeAccounts bool, voteType string,
 		proposalID int, limit int64, offset int64) ([]*models.Tx, int64, error)
@@ -766,7 +766,7 @@ func (r *txs) getTransactionsByTypes(ctx context.Context, accountAddress string,
 	return data, total, nil
 }
 
-func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, messageType string,
+func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, messageType []string,
 	limit int64, offset int64) ([]*models.Tx, int64, error) {
 	params := 4
 	placeholders := make([]string, len(values))
@@ -795,7 +795,7 @@ func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, mes
 		LEFT JOIN message_event_types ON message_events.message_event_type_id = message_event_types.id
 		LEFT JOIN message_event_attributes ON message_events.id = message_event_attributes.message_event_id
 		LEFT JOIN message_event_attribute_keys ON message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
-		WHERE message_types.message_type = $1
+		WHERE message_types.message_type = ANY($1)
 		AND txes.id IN (SELECT id FROM filtered_txes)
 		ORDER BY txes.timestamp DESC
 		LIMIT $3::integer OFFSET $4::integer;`, inClause)
@@ -822,7 +822,7 @@ func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, mes
 		if err = rows.Scan(&txHash, &txTime); err != nil {
 			return nil, 0, err
 		}
-		txByHash, _, err := r.Transactions(ctx, 100, 0, &TxsFilter{TxHash: &txHash})
+		txByHash, _, err := r.Transactions(ctx, 1, 0, &TxsFilter{TxHash: &txHash})
 		if err != nil {
 			return nil, 0, err
 		}
@@ -865,7 +865,7 @@ func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, mes
 			LEFT JOIN message_event_types ON message_events.message_event_type_id = message_event_types.id
 			LEFT JOIN message_event_attributes ON message_events.id = message_event_attributes.message_event_id
 			LEFT JOIN message_event_attribute_keys ON message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
-			WHERE message_types.message_type = $1
+			WHERE message_types.message_type = ANY($1)
 			  AND txes.id IN (SELECT id FROM filtered_txes)`, inClause)
 	args = make([]interface{}, len(values)+params)
 	args[0] = messageType
@@ -920,7 +920,7 @@ func (r *txs) GetVotesByAccounts(ctx context.Context, accounts []string, exclude
 	proposalID int, limit int64, offset int64) ([]*models.Tx, int64, error) {
 	transactions, _, err := r.TransactionsByEventValue(ctx,
 		[]string{voteType, strconv.Itoa(proposalID)},
-		"/cosmos.gov.v1beta1.MsgVote", 100000, 0)
+		[]string{"/cosmos.gov.v1beta1.MsgVote"}, 100000, 0)
 	if err != nil {
 		return nil, 0, err
 	}
