@@ -31,8 +31,8 @@ func NewChainRPC(cl *probeClient.ChainClient) ChainRPC {
 
 func (c *chainRPC) GetBlock(height int64) (*coretypes.ResultBlock, error) {
 	options := probeQuery.QueryOptions{Height: height}
-	query := probeQuery.Query{Client: c.cl, Options: &options}
-	resp, err := query.Block()
+	q := probeQuery.Query{Client: c.cl, Options: &options}
+	resp, err := q.Block()
 	if err != nil {
 		return nil, err
 	}
@@ -92,11 +92,11 @@ func (c *chainRPC) IsCatchingUp() (bool, error) {
 }
 
 func (c *chainRPC) GetLatestBlockHeight() (int64, error) {
-	query := probeQuery.Query{Client: c.cl, Options: &probeQuery.QueryOptions{}}
-	ctx, cancel := query.GetQueryContext()
+	q := probeQuery.Query{Client: c.cl, Options: &probeQuery.QueryOptions{}}
+	ctx, cancel := q.GetQueryContext()
 	defer cancel()
 
-	resStatus, err := query.Client.RPCClient.Status(ctx)
+	resStatus, err := q.Client.RPCClient.Status(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -144,11 +144,11 @@ func (c *chainRPC) GetLatestBlockHeightWithRetry(retryMaxAttempts int64, retryMa
 }
 
 func (c *chainRPC) GetEarliestAndLatestBlockHeights() (int64, int64, error) {
-	query := probeQuery.Query{Client: c.cl, Options: &probeQuery.QueryOptions{}}
-	ctx, cancel := query.GetQueryContext()
+	q := probeQuery.Query{Client: c.cl, Options: &probeQuery.QueryOptions{}}
+	ctx, cancel := q.GetQueryContext()
 	defer cancel()
 
-	resStatus, err := query.Client.RPCClient.Status(ctx)
+	resStatus, err := q.Client.RPCClient.Status(ctx)
 	if err != nil {
 		return 0, 0, err
 	}
