@@ -42,6 +42,7 @@ type Txs interface {
 	GetVotesByAccounts(ctx context.Context, accounts []string, excludeAccounts bool, voteType string,
 		proposalID int, limit int64, offset int64) ([]*models.Tx, int64, error)
 	GetWalletsCountPerPeriod(ctx context.Context, startDate, endDate time.Time) (int64, error)
+	GetWalletsWithTx(ctx context.Context, limit int64, offset int64) ([]*model.WalletWithTxs, int64, error)
 }
 
 type TxsFilter struct {
@@ -648,6 +649,60 @@ func (r *txs) GetWalletsCountPerPeriod(ctx context.Context, startDate, endDate t
 	}
 
 	return count, nil
+}
+
+func (r *txs) GetWalletsWithTx(ctx context.Context, limit int64, offset int64) ([]*model.WalletWithTxs, int64, error) {
+	query := `SELECT
+		subquery.value,
+		subquery.tx_count
+	FROM (
+			 SELECT
+				 message_event_attributes.value,
+				 COUNT(DISTINCT txes.hash) AS tx_count,
+				 txes.timestamp
+			 FROM txes
+					  LEFT JOIN messages ON txes.id = messages.tx_id
+					  LEFT JOIN message_types ON messages.message_type_id = message_types.id
+					  LEFT JOIN message_events ON messages.id = message_events.message_id
+					  LEFT JOIN message_event_types ON message_events.message_event_type_id = message_event_types.id
+					  LEFT JOIN message_event_attributes ON message_events.id = message_event_attributes.message_event_id
+					  LEFT JOIN message_event_attribute_keys ON message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
+			 WHERE message_event_attribute_keys.key = ANY($1)
+			 GROUP BY message_event_attributes.value, txes.timestamp
+		 ) subquery
+	ORDER BY subquery.timestamp DESC LIMIT $2 OFFSET $3`
+	types := []string{"sender"}
+
+	rows, err := r.db.Query(ctx, query, types, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	data := make([]*model.WalletWithTxs, 0)
+	for rows.Next() {
+		var item model.WalletWithTxs
+		if err = rows.Scan(&item.Account, &item.TxCount); err != nil {
+			return nil, 0, err
+		}
+		data = append(data, &item)
+	}
+
+	queryAll := `SELECT
+				 COUNT(message_event_attributes.value)
+			 FROM txes
+					  LEFT JOIN messages ON txes.id = messages.tx_id
+					  LEFT JOIN message_types ON messages.message_type_id = message_types.id
+					  LEFT JOIN message_events ON messages.id = message_events.message_id
+					  LEFT JOIN message_event_types ON message_events.message_event_type_id = message_event_types.id
+					  LEFT JOIN message_event_attributes ON message_events.id = message_event_attributes.message_event_id
+					  LEFT JOIN message_event_attribute_keys ON message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
+			 WHERE message_event_attribute_keys.key = ANY($1)`
+	var total int64
+	if err = r.db.QueryRow(ctx, queryAll, types).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	return data, total, nil
 }
 
 func (r *txs) GetVotes(ctx context.Context, accountAddress string) ([]*model.VotesTransaction, error) {

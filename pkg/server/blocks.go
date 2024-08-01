@@ -617,3 +617,24 @@ func (r *blocksServer) GetWalletsCountPerPeriod(ctx context.Context,
 	}
 	return &pb.GetWalletsCountPerPeriodResponse{Result: count}, nil
 }
+
+func (r *blocksServer) GetWalletsWithTx(ctx context.Context, in *pb.GetWalletsWithTxRequest) (*pb.GetWalletsWithTxResponse, error) {
+	res, total, err := r.srvTx.GetWalletsWithTx(ctx, in.Limit.Limit, in.Limit.Offset)
+	if err != nil {
+		return &pb.GetWalletsWithTxResponse{}, err
+	}
+
+	data := make([]*pb.WalletWithTxs, 0)
+	for _, tx := range res {
+		data = append(data, &pb.WalletWithTxs{
+			Account: tx.Account,
+			TxCount: tx.TxCount,
+		})
+	}
+
+	return &pb.GetWalletsWithTxResponse{Data: data, Result: &pb.Result{
+		Limit:  in.Limit.Limit,
+		Offset: in.Limit.Offset,
+		All:    total,
+	}}, nil
+}

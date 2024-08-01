@@ -64,3 +64,8 @@ type TxEvents struct {
 	Value       string `json:"value,omitempty"`
 	Key         string `json:"key,omitempty"`
 }
+
+type WalletWithTxs struct {
+	Account string `json:"account"`
+	TxCount int64  `json:"tx_count"`
+}

@@ -34,6 +34,7 @@ service BlocksService {
   rpc TransactionsByEventValue(TransactionsByEventValueRequest) returns (TransactionsByEventValueResponse) {}
   rpc GetVotesByAccounts(GetVotesByAccountsRequest) returns (GetVotesByAccountsResponse) {}
   rpc GetWalletsCountPerPeriod(GetWalletsCountPerPeriodRequest) returns (GetWalletsCountPerPeriodResponse) {}
+  rpc GetWalletsWithTx(GetWalletsWithTxRequest) returns (GetWalletsWithTxResponse) {}
 }
 
 
@@ -438,4 +439,18 @@ message GetWalletsCountPerPeriodRequest{
 
 message GetWalletsCountPerPeriodResponse{
   int64 result = 1;
+}
+
+message GetWalletsWithTxRequest{
+  Limit limit = 1;
+}
+
+message GetWalletsWithTxResponse{
+  repeated WalletWithTxs data = 1;
+  Result result = 2;
+}
+
+message WalletWithTxs{
+  string account = 1;
+  int64 tx_count = 2;
 }
