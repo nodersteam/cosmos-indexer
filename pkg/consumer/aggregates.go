@@ -2,12 +2,15 @@ package consumer
 
 import (
 	"context"
-	"fmt"
 	"github.com/nodersteam/cosmos-indexer/pkg/model"
 	"github.com/nodersteam/cosmos-indexer/pkg/repository"
 	"github.com/rs/zerolog/log"
 	"time"
 )
+
+type AggregatesConsumer interface {
+	Consume(ctx context.Context) error
+}
 
 type aggregatesConsumer struct {
 	totals repository.TotalsCache
@@ -15,7 +18,7 @@ type aggregatesConsumer struct {
 	txs    repository.Txs
 }
 
-func NewAggregatesConsumer(totals repository.TotalsCache, blocks repository.Blocks, txs repository.Txs) *aggregatesConsumer {
+func NewAggregatesConsumer(totals repository.TotalsCache, blocks repository.Blocks, txs repository.Txs) AggregatesConsumer {
 	return &aggregatesConsumer{totals: totals, blocks: blocks, txs: txs}
 }
 
@@ -34,8 +37,6 @@ func (s *aggregatesConsumer) Consume(ctx context.Context) error {
 			}
 		}
 	}
-
-	return fmt.Errorf("aggregatesConsumer failed")
 }
 
 func (s *aggregatesConsumer) storeAggregated(ctx context.Context) error {

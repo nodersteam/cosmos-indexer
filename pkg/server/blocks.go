@@ -383,7 +383,9 @@ func (r *blocksServer) CacheAggregated(ctx context.Context,
 		Wallets: &pb.TotalWallets{
 			Total:     info.Wallets.Total,
 			Count_24H: info.Wallets.Count24H,
-			Count_48H: info.Wallets.Count48H},
+			Count_48H: info.Wallets.Count48H,
+			Count_30D: info.Wallets.Count30D,
+		},
 	}, nil
 }
 
@@ -605,4 +607,34 @@ func (r *blocksServer) GetVotesByAccounts(ctx context.Context,
 			All:    all,
 		},
 	}, nil
+}
+
+func (r *blocksServer) GetWalletsCountPerPeriod(ctx context.Context,
+	in *pb.GetWalletsCountPerPeriodRequest) (*pb.GetWalletsCountPerPeriodResponse, error) {
+	count, err := r.srvTx.GetWalletsCountPerPeriod(ctx, in.Start.AsTime(), in.End.AsTime())
+	if err != nil {
+		return &pb.GetWalletsCountPerPeriodResponse{}, err
+	}
+	return &pb.GetWalletsCountPerPeriodResponse{Result: count}, nil
+}
+
+func (r *blocksServer) GetWalletsWithTx(ctx context.Context, in *pb.GetWalletsWithTxRequest) (*pb.GetWalletsWithTxResponse, error) {
+	res, total, err := r.srvTx.GetWalletsWithTx(ctx, in.Limit.Limit, in.Limit.Offset)
+	if err != nil {
+		return &pb.GetWalletsWithTxResponse{}, err
+	}
+
+	data := make([]*pb.WalletWithTxs, 0)
+	for _, tx := range res {
+		data = append(data, &pb.WalletWithTxs{
+			Account: tx.Account,
+			TxCount: tx.TxCount,
+		})
+	}
+
+	return &pb.GetWalletsWithTxResponse{Data: data, Result: &pb.Result{
+		Limit:  in.Limit.Limit,
+		Offset: in.Limit.Offset,
+		All:    total,
+	}}, nil
 }

@@ -35,6 +35,8 @@ type Txs interface {
 		messageType []string, limit int64, offset int64) ([]*models.Tx, int64, error)
 	GetVotesByAccounts(ctx context.Context, accounts []string, excludeAcc bool, voteType string,
 		proposalID int, limit int64, offset int64) ([]*models.Tx, int64, error)
+	GetWalletsCountPerPeriod(ctx context.Context, startDate, endDate time.Time) (int64, error)
+	GetWalletsWithTx(ctx context.Context, limit int64, offset int64) ([]*model.WalletWithTxs, int64, error)
 }
 
 type txs struct {
@@ -142,4 +144,12 @@ func (s *txs) TransactionsByEventValue(ctx context.Context, values []string,
 func (s *txs) GetVotesByAccounts(ctx context.Context, accounts []string, excludeAcc bool, voteType string,
 	proposalID int, limit int64, offset int64) ([]*models.Tx, int64, error) {
 	return s.txRepo.GetVotesByAccounts(ctx, accounts, excludeAcc, voteType, proposalID, limit, offset)
+}
+
+func (s *txs) GetWalletsCountPerPeriod(ctx context.Context, startDate, endDate time.Time) (int64, error) {
+	return s.txRepo.GetWalletsCountPerPeriod(ctx, startDate, endDate)
+}
+
+func (s *txs) GetWalletsWithTx(ctx context.Context, limit int64, offset int64) ([]*model.WalletWithTxs, int64, error) {
+	return s.txRepo.GetWalletsWithTx(ctx, limit, offset)
 }
