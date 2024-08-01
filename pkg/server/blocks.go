@@ -383,7 +383,9 @@ func (r *blocksServer) CacheAggregated(ctx context.Context,
 		Wallets: &pb.TotalWallets{
 			Total:     info.Wallets.Total,
 			Count_24H: info.Wallets.Count24H,
-			Count_48H: info.Wallets.Count48H},
+			Count_48H: info.Wallets.Count48H,
+			Count_30D: info.Wallets.Count30D,
+		},
 	}, nil
 }
 
@@ -605,4 +607,13 @@ func (r *blocksServer) GetVotesByAccounts(ctx context.Context,
 			All:    all,
 		},
 	}, nil
+}
+
+func (r *blocksServer) GetWalletsCountPerPeriod(ctx context.Context,
+	in *pb.GetWalletsCountPerPeriodRequest) (*pb.GetWalletsCountPerPeriodResponse, error) {
+	count, err := r.srvTx.GetWalletsCountPerPeriod(ctx, in.Start.AsTime(), in.End.AsTime())
+	if err != nil {
+		return &pb.GetWalletsCountPerPeriodResponse{}, err
+	}
+	return &pb.GetWalletsCountPerPeriodResponse{Result: count}, nil
 }

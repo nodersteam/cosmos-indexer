@@ -33,6 +33,7 @@ service BlocksService {
   rpc GetValidatorHistoryEvents(GetValidatorHistoryEventsRequest) returns (GetValidatorHistoryEventsResponse) {}
   rpc TransactionsByEventValue(TransactionsByEventValueRequest) returns (TransactionsByEventValueResponse) {}
   rpc GetVotesByAccounts(GetVotesByAccountsRequest) returns (GetVotesByAccountsResponse) {}
+  rpc GetWalletsCountPerPeriod(GetWalletsCountPerPeriodRequest) returns (GetWalletsCountPerPeriodResponse) {}
 }
 
 
@@ -289,6 +290,7 @@ message TotalWallets {
   int64 total = 1;
   int64 count_24H = 2;
   int64 count_48H = 3;
+  int64 count_30D = 4;
 }
 
 message SearchResults {
@@ -427,4 +429,13 @@ message GetVotesByAccountsRequest{
 message GetVotesByAccountsResponse{
   repeated TxByHash data = 1;
   Result result = 2;
+}
+
+message GetWalletsCountPerPeriodRequest{
+  google.protobuf.Timestamp start = 1;
+  google.protobuf.Timestamp end = 2;
+}
+
+message GetWalletsCountPerPeriodResponse{
+  int64 result = 1;
 }

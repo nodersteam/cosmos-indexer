@@ -45,6 +45,7 @@ const (
 	BlocksService_GetValidatorHistoryEvents_FullMethodName = "/blocks.BlocksService/GetValidatorHistoryEvents"
 	BlocksService_TransactionsByEventValue_FullMethodName  = "/blocks.BlocksService/TransactionsByEventValue"
 	BlocksService_GetVotesByAccounts_FullMethodName        = "/blocks.BlocksService/GetVotesByAccounts"
+	BlocksService_GetWalletsCountPerPeriod_FullMethodName  = "/blocks.BlocksService/GetWalletsCountPerPeriod"
 )
 
 // BlocksServiceClient is the client API for BlocksService service.
@@ -77,6 +78,7 @@ type BlocksServiceClient interface {
 	GetValidatorHistoryEvents(ctx context.Context, in *GetValidatorHistoryEventsRequest, opts ...grpc.CallOption) (*GetValidatorHistoryEventsResponse, error)
 	TransactionsByEventValue(ctx context.Context, in *TransactionsByEventValueRequest, opts ...grpc.CallOption) (*TransactionsByEventValueResponse, error)
 	GetVotesByAccounts(ctx context.Context, in *GetVotesByAccountsRequest, opts ...grpc.CallOption) (*GetVotesByAccountsResponse, error)
+	GetWalletsCountPerPeriod(ctx context.Context, in *GetWalletsCountPerPeriodRequest, opts ...grpc.CallOption) (*GetWalletsCountPerPeriodResponse, error)
 }
 
 type blocksServiceClient struct {
@@ -347,6 +349,16 @@ func (c *blocksServiceClient) GetVotesByAccounts(ctx context.Context, in *GetVot
 	return out, nil
 }
 
+func (c *blocksServiceClient) GetWalletsCountPerPeriod(ctx context.Context, in *GetWalletsCountPerPeriodRequest, opts ...grpc.CallOption) (*GetWalletsCountPerPeriodResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetWalletsCountPerPeriodResponse)
+	err := c.cc.Invoke(ctx, BlocksService_GetWalletsCountPerPeriod_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BlocksServiceServer is the server API for BlocksService service.
 // All implementations must embed UnimplementedBlocksServiceServer
 // for forward compatibility
@@ -377,6 +389,7 @@ type BlocksServiceServer interface {
 	GetValidatorHistoryEvents(context.Context, *GetValidatorHistoryEventsRequest) (*GetValidatorHistoryEventsResponse, error)
 	TransactionsByEventValue(context.Context, *TransactionsByEventValueRequest) (*TransactionsByEventValueResponse, error)
 	GetVotesByAccounts(context.Context, *GetVotesByAccountsRequest) (*GetVotesByAccountsResponse, error)
+	GetWalletsCountPerPeriod(context.Context, *GetWalletsCountPerPeriodRequest) (*GetWalletsCountPerPeriodResponse, error)
 	mustEmbedUnimplementedBlocksServiceServer()
 }
 
@@ -461,6 +474,9 @@ func (UnimplementedBlocksServiceServer) TransactionsByEventValue(context.Context
 }
 func (UnimplementedBlocksServiceServer) GetVotesByAccounts(context.Context, *GetVotesByAccountsRequest) (*GetVotesByAccountsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetVotesByAccounts not implemented")
+}
+func (UnimplementedBlocksServiceServer) GetWalletsCountPerPeriod(context.Context, *GetWalletsCountPerPeriodRequest) (*GetWalletsCountPerPeriodResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetWalletsCountPerPeriod not implemented")
 }
 func (UnimplementedBlocksServiceServer) mustEmbedUnimplementedBlocksServiceServer() {}
 
@@ -943,6 +959,24 @@ func _BlocksService_GetVotesByAccounts_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BlocksService_GetWalletsCountPerPeriod_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetWalletsCountPerPeriodRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BlocksServiceServer).GetWalletsCountPerPeriod(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BlocksService_GetWalletsCountPerPeriod_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BlocksServiceServer).GetWalletsCountPerPeriod(ctx, req.(*GetWalletsCountPerPeriodRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BlocksService_ServiceDesc is the grpc.ServiceDesc for BlocksService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1053,6 +1087,10 @@ var BlocksService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetVotesByAccounts",
 			Handler:    _BlocksService_GetVotesByAccounts_Handler,
+		},
+		{
+			MethodName: "GetWalletsCountPerPeriod",
+			Handler:    _BlocksService_GetWalletsCountPerPeriod_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

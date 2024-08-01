@@ -41,6 +41,7 @@ type Txs interface {
 		limit int64, offset int64) ([]*models.Tx, int64, error)
 	GetVotesByAccounts(ctx context.Context, accounts []string, excludeAccounts bool, voteType string,
 		proposalID int, limit int64, offset int64) ([]*models.Tx, int64, error)
+	GetWalletsCountPerPeriod(ctx context.Context, startDate, endDate time.Time) (int64, error)
 }
 
 type TxsFilter struct {
@@ -569,8 +570,8 @@ func (r *txs) extractNumber(value string) (decimal.Decimal, string, error) {
 }
 
 func (r *txs) GetWalletsCount(ctx context.Context) (*model.TotalWallets, error) {
-	query := `select distinct
-			   count(message_event_attributes.value) as total
+	query := `select
+			   count(distinct message_event_attributes.value) as total
 			from txes
 					 left join messages on txes.id = messages.tx_id
 					 left join message_types on messages.message_type_id = message_types.id
@@ -578,25 +579,36 @@ func (r *txs) GetWalletsCount(ctx context.Context) (*model.TotalWallets, error) 
 					 left join message_event_types on message_events.message_event_type_id=message_event_types.id
 					 left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
 					 left join message_event_attribute_keys on message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
-			where message_event_attribute_keys.key = ANY($2)
-			and date(txes.timestamp) = date($1)`
-	types := []string{"sender"}
-	row := r.db.QueryRow(ctx, query, time.Now().UTC(), types)
+			where message_event_attribute_keys.key = ANY($2) `
+
+	queryPerDate := query + `and date(txes.timestamp) = date($1)`
+	types := []string{"sender", "receiver", "recipient"}
+	row := r.db.QueryRow(ctx, queryPerDate, time.Now().UTC(), types)
 	var count24H int64
 	if err := row.Scan(&count24H); err != nil {
 		log.Err(err).Msgf("GetWalletsCount: rows error")
 		count24H = 0
 	}
 
-	row = r.db.QueryRow(ctx, query, time.Now().UTC().Add(-24*time.Hour), types)
+	row = r.db.QueryRow(ctx, queryPerDate, time.Now().UTC().Add(-24*time.Hour), types)
 	var count48H int64
 	if err := row.Scan(&count48H); err != nil {
 		log.Err(err).Msgf("GetWalletsCount: rows error")
 		count48H = 0
 	}
 
-	queryAll := `select distinct
-		   count(message_event_attributes.value) as total
+	queryMoreDate := query + `and date(txes.timestamp) >= date($1)`
+	firstDay := time.Date(time.Now().UTC().Year(), time.Now().UTC().Month(), 1, 0, 0, 0, 0, time.Local)
+	row = r.db.QueryRow(ctx, queryMoreDate, firstDay, types)
+	var count30D int64
+	if err := row.Scan(&count30D); err != nil {
+		log.Err(err).Msgf("GetWalletsCount: rows error")
+		count30D = 0
+	}
+
+	// total wallets
+	queryAll := `select
+		   count(distinct message_event_attributes.value) as total
 		from txes
 				 left join messages on txes.id = messages.tx_id
 				 left join message_types on messages.message_type_id = message_types.id
@@ -605,14 +617,37 @@ func (r *txs) GetWalletsCount(ctx context.Context) (*model.TotalWallets, error) 
 				 left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
 				 left join message_event_attribute_keys on message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
 		where message_event_attribute_keys.key = ANY($1)`
-	types = append(types, "receiver", "recipient")
+
 	row = r.db.QueryRow(ctx, queryAll, types)
 	var countAll int64
 	if err := row.Scan(&countAll); err != nil {
 		return nil, err
 	}
 
-	return &model.TotalWallets{Total: countAll, Count24H: count24H, Count48H: count48H}, nil
+	return &model.TotalWallets{Total: countAll, Count24H: count24H, Count48H: count48H, Count30D: count30D}, nil
+}
+
+func (r *txs) GetWalletsCountPerPeriod(ctx context.Context, startDate, endDate time.Time) (int64, error) {
+	query := `select
+			   count(distinct message_event_attributes.value) as total
+			from txes
+					 left join messages on txes.id = messages.tx_id
+					 left join message_types on messages.message_type_id = message_types.id
+					 left join message_events on messages.id = message_events.message_id
+					 left join message_event_types on message_events.message_event_type_id=message_event_types.id
+					 left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
+					 left join message_event_attribute_keys on message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
+			where message_event_attribute_keys.key = ANY($3)
+			and date(txes.timestamp) BETWEEN date($1) and date($2)`
+	types := []string{"sender", "receiver", "recipient"}
+	row := r.db.QueryRow(ctx, query, startDate.UTC(), endDate.UTC(), types)
+	var count int64
+	if err := row.Scan(&count); err != nil {
+		log.Err(err).Msgf("GetWalletsCount: rows error")
+		return 0, err
+	}
+
+	return count, nil
 }
 
 func (r *txs) GetVotes(ctx context.Context, accountAddress string) ([]*model.VotesTransaction, error) {
