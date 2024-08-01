@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/jackc/pgx/v5"
 	"github.com/nodersteam/cosmos-indexer/clients"
+	"github.com/nodersteam/cosmos-indexer/core/tx"
 	"github.com/nodersteam/cosmos-indexer/pkg/consumer"
 	"github.com/nodersteam/cosmos-indexer/pkg/model"
 	"github.com/redis/go-redis/v9"
@@ -57,6 +58,7 @@ type Indexer struct {
 	customEndBlockParserTrackers        map[string]models.BlockEventParser    // Used for tracking block event parsers in the database
 	customModels                        []any
 	rpcClient                           clients.ChainRPC
+	txParser                            tx.Parser
 }
 
 type blockEventFilterRegistries struct {
@@ -234,7 +236,7 @@ func setupIndexer() *Indexer {
 	var err error
 
 	// Setup chain specific stuff
-	core.ChainSpecificMessageTypeHandlerBootstrap(indexer.cfg.Probe.ChainID)
+	tx.ChainSpecificMessageTypeHandlerBootstrap(indexer.cfg.Probe.ChainID)
 
 	config.SetChainConfig(indexer.cfg.Probe.AccountPrefix)
 
@@ -260,6 +262,9 @@ func setupIndexer() *Indexer {
 	if err != nil {
 		config.Log.Fatal("Error querying chain status.", err)
 	}
+
+	txParser := tx.NewParser(indexer.db, indexer.cl, tx.NewProcessor(indexer.cl))
+	indexer.txParser = txParser
 
 	return &indexer
 }
@@ -730,10 +735,10 @@ func (idxr *Indexer) processBlocks(wg *sync.WaitGroup,
 
 			if blockData.GetTxsResponse != nil {
 				config.Log.Infof("Processing TXs from RPC TX Search response size: %d", len(blockData.GetTxsResponse.Txs))
-				txDBWrappers, _, err = core.ProcessRPCTXs(idxr.db, idxr.cl, idxr.messageTypeFilters, blockData.GetTxsResponse)
+				txDBWrappers, _, err = idxr.txParser.ProcessRPCTXs(idxr.messageTypeFilters, blockData.GetTxsResponse)
 			} else if blockData.BlockResultsData != nil {
 				config.Log.Info("Processing TXs from BlockResults search response")
-				txDBWrappers, _, err = core.ProcessRPCBlockByHeightTXs(idxr.db, idxr.cl, idxr.messageTypeFilters, blockData.BlockData, blockData.BlockResultsData)
+				txDBWrappers, _, err = idxr.txParser.ProcessRPCBlockByHeightTXs(idxr.messageTypeFilters, blockData.BlockData, blockData.BlockResultsData)
 			}
 
 			if err != nil {
