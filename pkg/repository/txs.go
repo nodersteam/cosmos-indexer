@@ -865,28 +865,17 @@ func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, mes
 	}
 	inClause := strings.Join(placeholders, ", ")
 
-	query := fmt.Sprintf(`WITH filtered_txes AS (
-		  SELECT txes.id
-		  FROM txes
-		  LEFT JOIN messages ON txes.id = messages.tx_id
-		  left join message_types on messages.message_type_id = message_types.id
-		  left join message_events on messages.id = message_events.message_id
-		  left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
-		  WHERE message_event_attributes.value IN (%s)
-		  GROUP BY txes.id
-		  HAVING COUNT(DISTINCT message_event_attributes.value) = $2::integer
-		)
+	query := fmt.Sprintf(`
 		SELECT DISTINCT txes.hash, txes.timestamp
 		FROM txes
-		LEFT JOIN blocks ON txes.block_id = blocks.id
 		LEFT JOIN messages ON txes.id = messages.tx_id
 		LEFT JOIN message_types ON messages.message_type_id = message_types.id
 		LEFT JOIN message_events ON messages.id = message_events.message_id
-		LEFT JOIN message_event_types ON message_events.message_event_type_id = message_event_types.id
 		LEFT JOIN message_event_attributes ON message_events.id = message_event_attributes.message_event_id
-		LEFT JOIN message_event_attribute_keys ON message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
 		WHERE message_types.message_type = ANY($1)
-		AND txes.id IN (SELECT id FROM filtered_txes)
+		AND message_event_attributes.value IN (%s)
+		GROUP BY txes.id, txes.hash, txes.timestamp
+		HAVING COUNT(DISTINCT message_event_attributes.value) = $2::integer
 		ORDER BY txes.timestamp DESC
 		LIMIT $3::integer OFFSET $4::integer;`, inClause)
 
@@ -935,28 +924,17 @@ func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, mes
 	}
 	inClause = strings.Join(placeholders, ", ")
 
-	queryAll := fmt.Sprintf(`WITH filtered_txes AS (
-			  SELECT txes.id
-			  FROM txes
-			  LEFT JOIN messages ON txes.id = messages.tx_id
-              left join message_types on messages.message_type_id = message_types.id
-              left join message_events on messages.id = message_events.message_id
-              left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
-			  WHERE message_event_attributes.value IN (%s)
-			  GROUP BY txes.id
-			  HAVING COUNT(DISTINCT message_event_attributes.value) = $2::integer
-			)
-			SELECT COUNT(DISTINCT txes.hash)
-			FROM txes
-			LEFT JOIN blocks ON txes.block_id = blocks.id
-			LEFT JOIN messages ON txes.id = messages.tx_id
-			LEFT JOIN message_types ON messages.message_type_id = message_types.id
-			LEFT JOIN message_events ON messages.id = message_events.message_id
-			LEFT JOIN message_event_types ON message_events.message_event_type_id = message_event_types.id
-			LEFT JOIN message_event_attributes ON message_events.id = message_event_attributes.message_event_id
-			LEFT JOIN message_event_attribute_keys ON message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
-			WHERE message_types.message_type = ANY($1)
-			  AND txes.id IN (SELECT id FROM filtered_txes)`, inClause)
+	queryAll := fmt.Sprintf(`SELECT COUNT(DISTINCT txes.hash)
+		FROM txes
+		LEFT JOIN messages ON txes.id = messages.tx_id
+		LEFT JOIN message_types ON messages.message_type_id = message_types.id
+		LEFT JOIN message_events ON messages.id = message_events.message_id
+		LEFT JOIN message_event_attributes ON message_events.id = message_event_attributes.message_event_id
+		WHERE message_types.message_type = ANY($1)
+		AND message_event_attributes.value IN (%s)
+		GROUP BY txes.id, txes.hash, txes.timestamp
+		HAVING COUNT(DISTINCT message_event_attributes.value) = $2::integer
+		ORDER BY txes.timestamp DESC;`, inClause)
 	args = make([]interface{}, len(values)+params)
 	args[0] = messageType
 	args[1] = len(values)
