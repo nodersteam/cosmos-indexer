@@ -43,6 +43,7 @@ type Txs interface {
 		proposalID int, limit int64, offset int64) ([]*models.Tx, int64, error)
 	GetWalletsCountPerPeriod(ctx context.Context, startDate, endDate time.Time) (int64, error)
 	GetWalletsWithTx(ctx context.Context, limit int64, offset int64) ([]*model.WalletWithTxs, int64, error)
+	TxCountByAccounts(ctx context.Context, accounts []string) ([]*model.WalletWithTxs, error)
 }
 
 type TxsFilter struct {
@@ -705,6 +706,36 @@ func (r *txs) GetWalletsWithTx(ctx context.Context, limit int64, offset int64) (
 	return data, total, nil
 }
 
+func (r *txs) TxCountByAccounts(ctx context.Context, accounts []string) ([]*model.WalletWithTxs, error) {
+	query := `SELECT
+				 message_event_attributes.value,
+				 COUNT(DISTINCT txes.hash) AS tx_count
+			 FROM txes
+					  LEFT JOIN messages ON txes.id = messages.tx_id
+					  LEFT JOIN message_types ON messages.message_type_id = message_types.id
+					  LEFT JOIN message_events ON messages.id = message_events.message_id
+					  LEFT JOIN message_event_types ON message_events.message_event_type_id = message_event_types.id
+					  LEFT JOIN message_event_attributes ON message_events.id = message_event_attributes.message_event_id
+					  LEFT JOIN message_event_attribute_keys ON message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
+			 WHERE message_event_attribute_keys.key = 'sender' and message_event_attributes.value = ANY($1)
+			 GROUP BY message_event_attributes.value`
+	rows, err := r.db.Query(ctx, query, accounts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	data := make([]*model.WalletWithTxs, 0)
+	for rows.Next() {
+		var item model.WalletWithTxs
+		if err = rows.Scan(&item.Account, &item.TxCount); err != nil {
+			return nil, err
+		}
+		data = append(data, &item)
+	}
+
+	return data, nil
+}
+
 func (r *txs) GetVotes(ctx context.Context, accountAddress string) ([]*model.VotesTransaction, error) {
 	voterQuery := `select txes.id
 			from txes
@@ -715,7 +746,7 @@ func (r *txs) GetVotes(ctx context.Context, accountAddress string) ([]*model.Vot
 					left join message_event_types on message_events.message_event_type_id=message_event_types.id
 					left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
 					left join message_event_attribute_keys on message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
-					where message_types.message_type in ('/cosmos.gov.v1beta1.MsgVote') and type = 'proposal_vote' and key='voter' and value = $1
+					where message_types.message_type = '/cosmos.gov.v1beta1.MsgVote' and type = 'proposal_vote' and key='voter' and value = $1
 			order by txes.id, messages.message_index, message_events.index, message_event_attributes.index asc;`
 	rows, err := r.db.Query(ctx, voterQuery, accountAddress)
 	if err != nil {
@@ -739,7 +770,7 @@ from txes
          left join message_event_types on message_events.message_event_type_id=message_event_types.id
          left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
          left join message_event_attribute_keys on message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
-where message_types.message_type in ('/cosmos.gov.v1beta1.MsgVote') and type = 'proposal_vote' and txes.id = $1
+where message_types.message_type = '/cosmos.gov.v1beta1.MsgVote' and type = 'proposal_vote' and txes.id = $1
 order by txes.id, messages.message_index, message_events.index, message_event_attributes.index asc) as inn
 group by inn.id, inn.timestamp, inn.hash, inn.height`
 	data := make([]*model.VotesTransaction, 0)

@@ -638,3 +638,20 @@ func (r *blocksServer) GetWalletsWithTx(ctx context.Context, in *pb.GetWalletsWi
 		All:    total,
 	}}, nil
 }
+
+func (r *blocksServer) TxCountByAccounts(ctx context.Context, in *pb.TxCountByAccountsRequest) (*pb.TxCountByAccountsResponse, error) {
+	res, err := r.srvTx.TxCountByAccounts(ctx, in.Accounts)
+	if err != nil {
+		return &pb.TxCountByAccountsResponse{}, err
+	}
+
+	data := make([]*pb.WalletWithTxs, 0)
+	for _, tx := range res {
+		data = append(data, &pb.WalletWithTxs{
+			Account: tx.Account,
+			TxCount: tx.TxCount,
+		})
+	}
+
+	return &pb.TxCountByAccountsResponse{Data: data}, nil
+}

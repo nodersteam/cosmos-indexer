@@ -4473,6 +4473,100 @@ func (x *WalletWithTxs) GetTxCount() int64 {
 	return 0
 }
 
+type TxCountByAccountsRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Accounts []string `protobuf:"bytes,1,rep,name=accounts,proto3" json:"accounts,omitempty"`
+}
+
+func (x *TxCountByAccountsRequest) Reset() {
+	*x = TxCountByAccountsRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_blocks_proto_msgTypes[75]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TxCountByAccountsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TxCountByAccountsRequest) ProtoMessage() {}
+
+func (x *TxCountByAccountsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_blocks_proto_msgTypes[75]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TxCountByAccountsRequest.ProtoReflect.Descriptor instead.
+func (*TxCountByAccountsRequest) Descriptor() ([]byte, []int) {
+	return file_blocks_proto_rawDescGZIP(), []int{75}
+}
+
+func (x *TxCountByAccountsRequest) GetAccounts() []string {
+	if x != nil {
+		return x.Accounts
+	}
+	return nil
+}
+
+type TxCountByAccountsResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Data []*WalletWithTxs `protobuf:"bytes,1,rep,name=data,proto3" json:"data,omitempty"`
+}
+
+func (x *TxCountByAccountsResponse) Reset() {
+	*x = TxCountByAccountsResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_blocks_proto_msgTypes[76]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TxCountByAccountsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TxCountByAccountsResponse) ProtoMessage() {}
+
+func (x *TxCountByAccountsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_blocks_proto_msgTypes[76]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TxCountByAccountsResponse.ProtoReflect.Descriptor instead.
+func (*TxCountByAccountsResponse) Descriptor() ([]byte, []int) {
+	return file_blocks_proto_rawDescGZIP(), []int{76}
+}
+
+func (x *TxCountByAccountsResponse) GetData() []*WalletWithTxs {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
 var File_blocks_proto protoreflect.FileDescriptor
 
 var file_blocks_proto_rawDesc = []byte{
@@ -4991,7 +5085,15 @@ var file_blocks_proto_rawDesc = []byte{
 	0x78, 0x73, 0x12, 0x18, 0x0a, 0x07, 0x61, 0x63, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x18, 0x01, 0x20,
 	0x01, 0x28, 0x09, 0x52, 0x07, 0x61, 0x63, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x12, 0x19, 0x0a, 0x08,
 	0x74, 0x78, 0x5f, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x03, 0x52, 0x07,
-	0x74, 0x78, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x32, 0x8d, 0x13, 0x0a, 0x0d, 0x42, 0x6c, 0x6f, 0x63,
+	0x74, 0x78, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x22, 0x36, 0x0a, 0x18, 0x54, 0x78, 0x43, 0x6f, 0x75,
+	0x6e, 0x74, 0x42, 0x79, 0x41, 0x63, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x73, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x12, 0x1a, 0x0a, 0x08, 0x61, 0x63, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x73, 0x18,
+	0x01, 0x20, 0x03, 0x28, 0x09, 0x52, 0x08, 0x61, 0x63, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x73, 0x22,
+	0x46, 0x0a, 0x19, 0x54, 0x78, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x42, 0x79, 0x41, 0x63, 0x63, 0x6f,
+	0x75, 0x6e, 0x74, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x29, 0x0a, 0x04,
+	0x64, 0x61, 0x74, 0x61, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x15, 0x2e, 0x62, 0x6c, 0x6f,
+	0x63, 0x6b, 0x73, 0x2e, 0x57, 0x61, 0x6c, 0x6c, 0x65, 0x74, 0x57, 0x69, 0x74, 0x68, 0x54, 0x78,
+	0x73, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x32, 0xe9, 0x13, 0x0a, 0x0d, 0x42, 0x6c, 0x6f, 0x63,
 	0x6b, 0x73, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x48, 0x0a, 0x09, 0x42, 0x6c, 0x6f,
 	0x63, 0x6b, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x1b, 0x2e, 0x62, 0x6c, 0x6f, 0x63, 0x6b, 0x73, 0x2e,
 	0x47, 0x65, 0x74, 0x42, 0x6c, 0x6f, 0x63, 0x6b, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x65, 0x71, 0x75,
@@ -5144,8 +5246,14 @@ var file_blocks_proto_rawDesc = []byte{
 	0x61, 0x6c, 0x6c, 0x65, 0x74, 0x73, 0x57, 0x69, 0x74, 0x68, 0x54, 0x78, 0x52, 0x65, 0x71, 0x75,
 	0x65, 0x73, 0x74, 0x1a, 0x20, 0x2e, 0x62, 0x6c, 0x6f, 0x63, 0x6b, 0x73, 0x2e, 0x47, 0x65, 0x74,
 	0x57, 0x61, 0x6c, 0x6c, 0x65, 0x74, 0x73, 0x57, 0x69, 0x74, 0x68, 0x54, 0x78, 0x52, 0x65, 0x73,
-	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x00, 0x42, 0x09, 0x5a, 0x07, 0x2f, 0x62, 0x6c, 0x6f, 0x63,
-	0x6b, 0x73, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x00, 0x12, 0x5a, 0x0a, 0x11, 0x54, 0x78, 0x43, 0x6f, 0x75,
+	0x6e, 0x74, 0x42, 0x79, 0x41, 0x63, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x73, 0x12, 0x20, 0x2e, 0x62,
+	0x6c, 0x6f, 0x63, 0x6b, 0x73, 0x2e, 0x54, 0x78, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x42, 0x79, 0x41,
+	0x63, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x21,
+	0x2e, 0x62, 0x6c, 0x6f, 0x63, 0x6b, 0x73, 0x2e, 0x54, 0x78, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x42,
+	0x79, 0x41, 0x63, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x22, 0x00, 0x42, 0x09, 0x5a, 0x07, 0x2f, 0x62, 0x6c, 0x6f, 0x63, 0x6b, 0x73, 0x62, 0x06,
+	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -5160,7 +5268,7 @@ func file_blocks_proto_rawDescGZIP() []byte {
 	return file_blocks_proto_rawDescData
 }
 
-var file_blocks_proto_msgTypes = make([]protoimpl.MessageInfo, 75)
+var file_blocks_proto_msgTypes = make([]protoimpl.MessageInfo, 77)
 var file_blocks_proto_goTypes = []any{
 	(*Block)(nil),                             // 0: blocks.Block
 	(*GetBlockInfoRequest)(nil),               // 1: blocks.GetBlockInfoRequest
@@ -5237,14 +5345,16 @@ var file_blocks_proto_goTypes = []any{
 	(*GetWalletsWithTxRequest)(nil),           // 72: blocks.GetWalletsWithTxRequest
 	(*GetWalletsWithTxResponse)(nil),          // 73: blocks.GetWalletsWithTxResponse
 	(*WalletWithTxs)(nil),                     // 74: blocks.WalletWithTxs
-	(*timestamppb.Timestamp)(nil),             // 75: google.protobuf.Timestamp
+	(*TxCountByAccountsRequest)(nil),          // 75: blocks.TxCountByAccountsRequest
+	(*TxCountByAccountsResponse)(nil),         // 76: blocks.TxCountByAccountsResponse
+	(*timestamppb.Timestamp)(nil),             // 77: google.protobuf.Timestamp
 }
 var file_blocks_proto_depIdxs = []int32{
-	75, // 0: blocks.Block.generation_time:type_name -> google.protobuf.Timestamp
+	77, // 0: blocks.Block.generation_time:type_name -> google.protobuf.Timestamp
 	0,  // 1: blocks.GetBlockInfoResponse.info:type_name -> blocks.Block
-	75, // 2: blocks.TxByDay.day:type_name -> google.protobuf.Timestamp
-	75, // 3: blocks.TxChartByDayRequest.from:type_name -> google.protobuf.Timestamp
-	75, // 4: blocks.TxChartByDayRequest.to:type_name -> google.protobuf.Timestamp
+	77, // 2: blocks.TxByDay.day:type_name -> google.protobuf.Timestamp
+	77, // 3: blocks.TxChartByDayRequest.from:type_name -> google.protobuf.Timestamp
+	77, // 4: blocks.TxChartByDayRequest.to:type_name -> google.protobuf.Timestamp
 	5,  // 5: blocks.TxChartByDayResponse.tx_by_day:type_name -> blocks.TxByDay
 	10, // 6: blocks.TxByHashResponse.tx:type_name -> blocks.TxByHash
 	14, // 7: blocks.TxByHash.auth_info:type_name -> blocks.TxAuthInfo
@@ -5259,18 +5369,18 @@ var file_blocks_proto_depIdxs = []int32{
 	20, // 16: blocks.TxFee.amount:type_name -> blocks.Denom
 	20, // 17: blocks.TxTip.amount:type_name -> blocks.Denom
 	19, // 18: blocks.TxResponse.logs:type_name -> blocks.TxLog
-	75, // 19: blocks.TotalTransactionsRequest.to:type_name -> google.protobuf.Timestamp
+	77, // 19: blocks.TotalTransactionsRequest.to:type_name -> google.protobuf.Timestamp
 	23, // 20: blocks.TransactionsRequest.limit:type_name -> blocks.Limit
 	10, // 21: blocks.TransactionsResponse.tx:type_name -> blocks.TxByHash
 	24, // 22: blocks.TransactionsResponse.result:type_name -> blocks.Result
-	75, // 23: blocks.TotalBlocksRequest.to:type_name -> google.protobuf.Timestamp
+	77, // 23: blocks.TotalBlocksRequest.to:type_name -> google.protobuf.Timestamp
 	23, // 24: blocks.GetBlocksRequest.limit:type_name -> blocks.Limit
 	0,  // 25: blocks.GetBlocksResponse.blocks:type_name -> blocks.Block
 	24, // 26: blocks.GetBlocksResponse.result:type_name -> blocks.Result
 	23, // 27: blocks.BlockSignaturesRequest.limit:type_name -> blocks.Limit
 	33, // 28: blocks.BlockSignaturesResponse.signers:type_name -> blocks.SignerAddress
 	24, // 29: blocks.BlockSignaturesResponse.result:type_name -> blocks.Result
-	75, // 30: blocks.SignerAddress.time:type_name -> google.protobuf.Timestamp
+	77, // 30: blocks.SignerAddress.time:type_name -> google.protobuf.Timestamp
 	23, // 31: blocks.TxsByBlockRequest.limit:type_name -> blocks.Limit
 	10, // 32: blocks.TxsByBlockResponse.data:type_name -> blocks.TxByHash
 	24, // 33: blocks.TxsByBlockResponse.result:type_name -> blocks.Result
@@ -5280,14 +5390,14 @@ var file_blocks_proto_depIdxs = []int32{
 	42, // 37: blocks.CacheAggregatedResponse.wallets:type_name -> blocks.TotalWallets
 	43, // 38: blocks.SearchHashByTextResponse.results:type_name -> blocks.SearchResults
 	0,  // 39: blocks.BlockInfoByHashResponse.info:type_name -> blocks.Block
-	75, // 40: blocks.ChartTransactionsByHourRequest.to:type_name -> google.protobuf.Timestamp
-	75, // 41: blocks.TxsByHour.hour:type_name -> google.protobuf.Timestamp
+	77, // 40: blocks.ChartTransactionsByHourRequest.to:type_name -> google.protobuf.Timestamp
+	77, // 41: blocks.TxsByHour.hour:type_name -> google.protobuf.Timestamp
 	49, // 42: blocks.ChartTransactionsByHourResponse.points:type_name -> blocks.TxsByHour
-	75, // 43: blocks.ChartTransactionsVolumeRequest.to:type_name -> google.protobuf.Timestamp
-	75, // 44: blocks.TxsVolumeByHour.hour:type_name -> google.protobuf.Timestamp
+	77, // 43: blocks.ChartTransactionsVolumeRequest.to:type_name -> google.protobuf.Timestamp
+	77, // 44: blocks.TxsVolumeByHour.hour:type_name -> google.protobuf.Timestamp
 	52, // 45: blocks.ChartTransactionsVolumeResponse.points:type_name -> blocks.TxsVolumeByHour
 	57, // 46: blocks.UptimeByBlocksResponse.blocks:type_name -> blocks.BlockSigned
-	75, // 47: blocks.VotesTransaction.time:type_name -> google.protobuf.Timestamp
+	77, // 47: blocks.VotesTransaction.time:type_name -> google.protobuf.Timestamp
 	59, // 48: blocks.GetVotesResponse.transactions:type_name -> blocks.VotesTransaction
 	23, // 49: blocks.GetPowerEventsRequest.limit:type_name -> blocks.Limit
 	10, // 50: blocks.GetPowerEventsResponse.data:type_name -> blocks.TxByHash
@@ -5301,72 +5411,75 @@ var file_blocks_proto_depIdxs = []int32{
 	23, // 58: blocks.GetVotesByAccountsRequest.limit:type_name -> blocks.Limit
 	10, // 59: blocks.GetVotesByAccountsResponse.data:type_name -> blocks.TxByHash
 	24, // 60: blocks.GetVotesByAccountsResponse.result:type_name -> blocks.Result
-	75, // 61: blocks.GetWalletsCountPerPeriodRequest.start:type_name -> google.protobuf.Timestamp
-	75, // 62: blocks.GetWalletsCountPerPeriodRequest.end:type_name -> google.protobuf.Timestamp
+	77, // 61: blocks.GetWalletsCountPerPeriodRequest.start:type_name -> google.protobuf.Timestamp
+	77, // 62: blocks.GetWalletsCountPerPeriodRequest.end:type_name -> google.protobuf.Timestamp
 	23, // 63: blocks.GetWalletsWithTxRequest.limit:type_name -> blocks.Limit
 	74, // 64: blocks.GetWalletsWithTxResponse.data:type_name -> blocks.WalletWithTxs
 	24, // 65: blocks.GetWalletsWithTxResponse.result:type_name -> blocks.Result
-	1,  // 66: blocks.BlocksService.BlockInfo:input_type -> blocks.GetBlockInfoRequest
-	46, // 67: blocks.BlocksService.BlockInfoByHash:input_type -> blocks.BlockInfoByHashRequest
-	3,  // 68: blocks.BlocksService.BlockValidators:input_type -> blocks.GetBlockValidatorsRequest
-	6,  // 69: blocks.BlocksService.TxChartByDay:input_type -> blocks.TxChartByDayRequest
-	8,  // 70: blocks.BlocksService.TxByHash:input_type -> blocks.TxByHashRequest
-	21, // 71: blocks.BlocksService.TotalTransactions:input_type -> blocks.TotalTransactionsRequest
-	25, // 72: blocks.BlocksService.Transactions:input_type -> blocks.TransactionsRequest
-	27, // 73: blocks.BlocksService.TotalBlocks:input_type -> blocks.TotalBlocksRequest
-	29, // 74: blocks.BlocksService.GetBlocks:input_type -> blocks.GetBlocksRequest
-	31, // 75: blocks.BlocksService.BlockSignatures:input_type -> blocks.BlockSignaturesRequest
-	34, // 76: blocks.BlocksService.TxsByBlock:input_type -> blocks.TxsByBlockRequest
-	36, // 77: blocks.BlocksService.TransactionRawLog:input_type -> blocks.TransactionRawLogRequest
-	38, // 78: blocks.BlocksService.TransactionSigners:input_type -> blocks.TransactionSignersRequest
-	25, // 79: blocks.BlocksService.CacheTransactions:input_type -> blocks.TransactionsRequest
-	29, // 80: blocks.BlocksService.CacheGetBlocks:input_type -> blocks.GetBlocksRequest
-	40, // 81: blocks.BlocksService.CacheAggregated:input_type -> blocks.CacheAggregatedRequest
-	44, // 82: blocks.BlocksService.SearchHashByText:input_type -> blocks.SearchHashByTextRequest
-	48, // 83: blocks.BlocksService.ChartTransactionsByHour:input_type -> blocks.ChartTransactionsByHourRequest
-	51, // 84: blocks.BlocksService.ChartTransactionsVolume:input_type -> blocks.ChartTransactionsVolumeRequest
-	54, // 85: blocks.BlocksService.BlockUpTime:input_type -> blocks.BlockUpTimeRequest
-	56, // 86: blocks.BlocksService.UptimeByBlocks:input_type -> blocks.UptimeByBlocksRequest
-	60, // 87: blocks.BlocksService.GetVotes:input_type -> blocks.GetVotesRequest
-	62, // 88: blocks.BlocksService.GetPowerEvents:input_type -> blocks.GetPowerEventsRequest
-	64, // 89: blocks.BlocksService.GetValidatorHistoryEvents:input_type -> blocks.GetValidatorHistoryEventsRequest
-	66, // 90: blocks.BlocksService.TransactionsByEventValue:input_type -> blocks.TransactionsByEventValueRequest
-	68, // 91: blocks.BlocksService.GetVotesByAccounts:input_type -> blocks.GetVotesByAccountsRequest
-	70, // 92: blocks.BlocksService.GetWalletsCountPerPeriod:input_type -> blocks.GetWalletsCountPerPeriodRequest
-	72, // 93: blocks.BlocksService.GetWalletsWithTx:input_type -> blocks.GetWalletsWithTxRequest
-	2,  // 94: blocks.BlocksService.BlockInfo:output_type -> blocks.GetBlockInfoResponse
-	47, // 95: blocks.BlocksService.BlockInfoByHash:output_type -> blocks.BlockInfoByHashResponse
-	4,  // 96: blocks.BlocksService.BlockValidators:output_type -> blocks.GetBlockValidatorsResponse
-	7,  // 97: blocks.BlocksService.TxChartByDay:output_type -> blocks.TxChartByDayResponse
-	9,  // 98: blocks.BlocksService.TxByHash:output_type -> blocks.TxByHashResponse
-	22, // 99: blocks.BlocksService.TotalTransactions:output_type -> blocks.TotalTransactionsResponse
-	26, // 100: blocks.BlocksService.Transactions:output_type -> blocks.TransactionsResponse
-	28, // 101: blocks.BlocksService.TotalBlocks:output_type -> blocks.TotalBlocksResponse
-	30, // 102: blocks.BlocksService.GetBlocks:output_type -> blocks.GetBlocksResponse
-	32, // 103: blocks.BlocksService.BlockSignatures:output_type -> blocks.BlockSignaturesResponse
-	35, // 104: blocks.BlocksService.TxsByBlock:output_type -> blocks.TxsByBlockResponse
-	37, // 105: blocks.BlocksService.TransactionRawLog:output_type -> blocks.TransactionRawLogResponse
-	39, // 106: blocks.BlocksService.TransactionSigners:output_type -> blocks.TransactionSignersResponse
-	26, // 107: blocks.BlocksService.CacheTransactions:output_type -> blocks.TransactionsResponse
-	30, // 108: blocks.BlocksService.CacheGetBlocks:output_type -> blocks.GetBlocksResponse
-	41, // 109: blocks.BlocksService.CacheAggregated:output_type -> blocks.CacheAggregatedResponse
-	45, // 110: blocks.BlocksService.SearchHashByText:output_type -> blocks.SearchHashByTextResponse
-	50, // 111: blocks.BlocksService.ChartTransactionsByHour:output_type -> blocks.ChartTransactionsByHourResponse
-	53, // 112: blocks.BlocksService.ChartTransactionsVolume:output_type -> blocks.ChartTransactionsVolumeResponse
-	55, // 113: blocks.BlocksService.BlockUpTime:output_type -> blocks.BlockUpTimeResponse
-	58, // 114: blocks.BlocksService.UptimeByBlocks:output_type -> blocks.UptimeByBlocksResponse
-	61, // 115: blocks.BlocksService.GetVotes:output_type -> blocks.GetVotesResponse
-	63, // 116: blocks.BlocksService.GetPowerEvents:output_type -> blocks.GetPowerEventsResponse
-	65, // 117: blocks.BlocksService.GetValidatorHistoryEvents:output_type -> blocks.GetValidatorHistoryEventsResponse
-	67, // 118: blocks.BlocksService.TransactionsByEventValue:output_type -> blocks.TransactionsByEventValueResponse
-	69, // 119: blocks.BlocksService.GetVotesByAccounts:output_type -> blocks.GetVotesByAccountsResponse
-	71, // 120: blocks.BlocksService.GetWalletsCountPerPeriod:output_type -> blocks.GetWalletsCountPerPeriodResponse
-	73, // 121: blocks.BlocksService.GetWalletsWithTx:output_type -> blocks.GetWalletsWithTxResponse
-	94, // [94:122] is the sub-list for method output_type
-	66, // [66:94] is the sub-list for method input_type
-	66, // [66:66] is the sub-list for extension type_name
-	66, // [66:66] is the sub-list for extension extendee
-	0,  // [0:66] is the sub-list for field type_name
+	74, // 66: blocks.TxCountByAccountsResponse.data:type_name -> blocks.WalletWithTxs
+	1,  // 67: blocks.BlocksService.BlockInfo:input_type -> blocks.GetBlockInfoRequest
+	46, // 68: blocks.BlocksService.BlockInfoByHash:input_type -> blocks.BlockInfoByHashRequest
+	3,  // 69: blocks.BlocksService.BlockValidators:input_type -> blocks.GetBlockValidatorsRequest
+	6,  // 70: blocks.BlocksService.TxChartByDay:input_type -> blocks.TxChartByDayRequest
+	8,  // 71: blocks.BlocksService.TxByHash:input_type -> blocks.TxByHashRequest
+	21, // 72: blocks.BlocksService.TotalTransactions:input_type -> blocks.TotalTransactionsRequest
+	25, // 73: blocks.BlocksService.Transactions:input_type -> blocks.TransactionsRequest
+	27, // 74: blocks.BlocksService.TotalBlocks:input_type -> blocks.TotalBlocksRequest
+	29, // 75: blocks.BlocksService.GetBlocks:input_type -> blocks.GetBlocksRequest
+	31, // 76: blocks.BlocksService.BlockSignatures:input_type -> blocks.BlockSignaturesRequest
+	34, // 77: blocks.BlocksService.TxsByBlock:input_type -> blocks.TxsByBlockRequest
+	36, // 78: blocks.BlocksService.TransactionRawLog:input_type -> blocks.TransactionRawLogRequest
+	38, // 79: blocks.BlocksService.TransactionSigners:input_type -> blocks.TransactionSignersRequest
+	25, // 80: blocks.BlocksService.CacheTransactions:input_type -> blocks.TransactionsRequest
+	29, // 81: blocks.BlocksService.CacheGetBlocks:input_type -> blocks.GetBlocksRequest
+	40, // 82: blocks.BlocksService.CacheAggregated:input_type -> blocks.CacheAggregatedRequest
+	44, // 83: blocks.BlocksService.SearchHashByText:input_type -> blocks.SearchHashByTextRequest
+	48, // 84: blocks.BlocksService.ChartTransactionsByHour:input_type -> blocks.ChartTransactionsByHourRequest
+	51, // 85: blocks.BlocksService.ChartTransactionsVolume:input_type -> blocks.ChartTransactionsVolumeRequest
+	54, // 86: blocks.BlocksService.BlockUpTime:input_type -> blocks.BlockUpTimeRequest
+	56, // 87: blocks.BlocksService.UptimeByBlocks:input_type -> blocks.UptimeByBlocksRequest
+	60, // 88: blocks.BlocksService.GetVotes:input_type -> blocks.GetVotesRequest
+	62, // 89: blocks.BlocksService.GetPowerEvents:input_type -> blocks.GetPowerEventsRequest
+	64, // 90: blocks.BlocksService.GetValidatorHistoryEvents:input_type -> blocks.GetValidatorHistoryEventsRequest
+	66, // 91: blocks.BlocksService.TransactionsByEventValue:input_type -> blocks.TransactionsByEventValueRequest
+	68, // 92: blocks.BlocksService.GetVotesByAccounts:input_type -> blocks.GetVotesByAccountsRequest
+	70, // 93: blocks.BlocksService.GetWalletsCountPerPeriod:input_type -> blocks.GetWalletsCountPerPeriodRequest
+	72, // 94: blocks.BlocksService.GetWalletsWithTx:input_type -> blocks.GetWalletsWithTxRequest
+	75, // 95: blocks.BlocksService.TxCountByAccounts:input_type -> blocks.TxCountByAccountsRequest
+	2,  // 96: blocks.BlocksService.BlockInfo:output_type -> blocks.GetBlockInfoResponse
+	47, // 97: blocks.BlocksService.BlockInfoByHash:output_type -> blocks.BlockInfoByHashResponse
+	4,  // 98: blocks.BlocksService.BlockValidators:output_type -> blocks.GetBlockValidatorsResponse
+	7,  // 99: blocks.BlocksService.TxChartByDay:output_type -> blocks.TxChartByDayResponse
+	9,  // 100: blocks.BlocksService.TxByHash:output_type -> blocks.TxByHashResponse
+	22, // 101: blocks.BlocksService.TotalTransactions:output_type -> blocks.TotalTransactionsResponse
+	26, // 102: blocks.BlocksService.Transactions:output_type -> blocks.TransactionsResponse
+	28, // 103: blocks.BlocksService.TotalBlocks:output_type -> blocks.TotalBlocksResponse
+	30, // 104: blocks.BlocksService.GetBlocks:output_type -> blocks.GetBlocksResponse
+	32, // 105: blocks.BlocksService.BlockSignatures:output_type -> blocks.BlockSignaturesResponse
+	35, // 106: blocks.BlocksService.TxsByBlock:output_type -> blocks.TxsByBlockResponse
+	37, // 107: blocks.BlocksService.TransactionRawLog:output_type -> blocks.TransactionRawLogResponse
+	39, // 108: blocks.BlocksService.TransactionSigners:output_type -> blocks.TransactionSignersResponse
+	26, // 109: blocks.BlocksService.CacheTransactions:output_type -> blocks.TransactionsResponse
+	30, // 110: blocks.BlocksService.CacheGetBlocks:output_type -> blocks.GetBlocksResponse
+	41, // 111: blocks.BlocksService.CacheAggregated:output_type -> blocks.CacheAggregatedResponse
+	45, // 112: blocks.BlocksService.SearchHashByText:output_type -> blocks.SearchHashByTextResponse
+	50, // 113: blocks.BlocksService.ChartTransactionsByHour:output_type -> blocks.ChartTransactionsByHourResponse
+	53, // 114: blocks.BlocksService.ChartTransactionsVolume:output_type -> blocks.ChartTransactionsVolumeResponse
+	55, // 115: blocks.BlocksService.BlockUpTime:output_type -> blocks.BlockUpTimeResponse
+	58, // 116: blocks.BlocksService.UptimeByBlocks:output_type -> blocks.UptimeByBlocksResponse
+	61, // 117: blocks.BlocksService.GetVotes:output_type -> blocks.GetVotesResponse
+	63, // 118: blocks.BlocksService.GetPowerEvents:output_type -> blocks.GetPowerEventsResponse
+	65, // 119: blocks.BlocksService.GetValidatorHistoryEvents:output_type -> blocks.GetValidatorHistoryEventsResponse
+	67, // 120: blocks.BlocksService.TransactionsByEventValue:output_type -> blocks.TransactionsByEventValueResponse
+	69, // 121: blocks.BlocksService.GetVotesByAccounts:output_type -> blocks.GetVotesByAccountsResponse
+	71, // 122: blocks.BlocksService.GetWalletsCountPerPeriod:output_type -> blocks.GetWalletsCountPerPeriodResponse
+	73, // 123: blocks.BlocksService.GetWalletsWithTx:output_type -> blocks.GetWalletsWithTxResponse
+	76, // 124: blocks.BlocksService.TxCountByAccounts:output_type -> blocks.TxCountByAccountsResponse
+	96, // [96:125] is the sub-list for method output_type
+	67, // [67:96] is the sub-list for method input_type
+	67, // [67:67] is the sub-list for extension type_name
+	67, // [67:67] is the sub-list for extension extendee
+	0,  // [0:67] is the sub-list for field type_name
 }
 
 func init() { file_blocks_proto_init() }
@@ -6275,6 +6388,30 @@ func file_blocks_proto_init() {
 				return nil
 			}
 		}
+		file_blocks_proto_msgTypes[75].Exporter = func(v any, i int) any {
+			switch v := v.(*TxCountByAccountsRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_blocks_proto_msgTypes[76].Exporter = func(v any, i int) any {
+			switch v := v.(*TxCountByAccountsResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	file_blocks_proto_msgTypes[10].OneofWrappers = []any{}
 	type x struct{}
@@ -6283,7 +6420,7 @@ func file_blocks_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_blocks_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   75,
+			NumMessages:   77,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

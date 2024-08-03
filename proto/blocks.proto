@@ -35,6 +35,7 @@ service BlocksService {
   rpc GetVotesByAccounts(GetVotesByAccountsRequest) returns (GetVotesByAccountsResponse) {}
   rpc GetWalletsCountPerPeriod(GetWalletsCountPerPeriodRequest) returns (GetWalletsCountPerPeriodResponse) {}
   rpc GetWalletsWithTx(GetWalletsWithTxRequest) returns (GetWalletsWithTxResponse) {}
+  rpc TxCountByAccounts(TxCountByAccountsRequest) returns (TxCountByAccountsResponse) {}
 }
 
 
@@ -453,4 +454,12 @@ message GetWalletsWithTxResponse{
 message WalletWithTxs{
   string account = 1;
   int64 tx_count = 2;
+}
+
+message TxCountByAccountsRequest{
+  repeated string accounts = 1;
+}
+
+message TxCountByAccountsResponse{
+  repeated WalletWithTxs data = 1;
 }
