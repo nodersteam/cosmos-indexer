@@ -90,6 +90,15 @@ func (s *txs) GetTxByHash(ctx context.Context, txHash string) (*models.Tx, error
 	if len(transactions) == 0 {
 		return nil, fmt.Errorf("not found")
 	}
+
+	for _, tx := range transactions {
+		events, err := s.txRepo.GetEvents(ctx, tx.ID)
+		if err != nil {
+			log.Err(err).Msgf("error getting events for tx %s", tx.ID)
+			continue
+		}
+		tx.Events = events
+	}
 	txRes := transactions[0]
 	return txRes, nil
 }
