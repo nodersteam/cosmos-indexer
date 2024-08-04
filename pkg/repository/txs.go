@@ -37,7 +37,7 @@ type Txs interface {
 		limit int64, offset int64) ([]*models.Tx, int64, error)
 	GetValidatorHistory(ctx context.Context, accountAddress string,
 		limit int64, offset int64) ([]*models.Tx, int64, error)
-	TransactionsByEventValue(ctx context.Context, values []string, messageType []string,
+	TransactionsByEventValue(ctx context.Context, values []string, messageType []string, includeEvents bool,
 		limit int64, offset int64) ([]*models.Tx, int64, error)
 	GetVotesByAccounts(ctx context.Context, accounts []string, excludeAccounts bool, voteType string,
 		proposalID int, limit int64, offset int64) ([]*models.Tx, int64, error)
@@ -887,8 +887,8 @@ func (r *txs) getTransactionsByTypes(ctx context.Context, accountAddress string,
 	return data, total, nil
 }
 
-func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, messageType []string,
-	limit int64, offset int64) ([]*models.Tx, int64, error) {
+func (r *txs) transactionsByEventValuePrepare(values []string, messageType []string,
+	limit int64, offset int64) (string, []any) {
 	params := 4
 	placeholders := make([]string, len(values))
 	for i := range values {
@@ -919,6 +919,13 @@ func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, mes
 		args[i+params] = v
 	}
 
+	return query, args
+}
+
+func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, messageType []string, includeEvents bool,
+	limit int64, offset int64) ([]*models.Tx, int64, error) {
+	query, args := r.transactionsByEventValuePrepare(values, messageType, limit, offset)
+
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, 0, err
@@ -937,23 +944,25 @@ func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, mes
 			return nil, 0, err
 		}
 
-		for _, tx := range txByHash {
-			events, err := r.getEvents(ctx, tx.ID)
-			if err != nil {
-				return nil, 0, err
+		if includeEvents {
+			for _, tx := range txByHash {
+				events, err := r.getEvents(ctx, tx.ID)
+				if err != nil {
+					return nil, 0, err
+				}
+				tx.Events = events
 			}
-			tx.Events = events
 		}
 		data = append(data, txByHash...)
 	}
 
 	// calculating total count
-	params = 2
-	placeholders = make([]string, len(values))
+	params := 2
+	placeholders := make([]string, len(values))
 	for i := range values {
 		placeholders[i] = fmt.Sprintf("$%d", i+params+1)
 	}
-	inClause = strings.Join(placeholders, ", ")
+	inClause := strings.Join(placeholders, ", ")
 
 	queryAll := fmt.Sprintf(`SELECT COUNT(DISTINCT txes.hash)
 		FROM txes
@@ -1017,11 +1026,23 @@ order by messages.message_index, message_events.index, message_event_attributes.
 
 func (r *txs) GetVotesByAccounts(ctx context.Context, accounts []string, excludeAccounts bool, voteType string,
 	proposalID int, limit int64, offset int64) ([]*models.Tx, int64, error) {
-	transactions, _, err := r.TransactionsByEventValue(ctx,
+	queryTxs, paramsTxs := r.transactionsByEventValuePrepare(
 		[]string{voteType, strconv.Itoa(proposalID)},
 		[]string{"/cosmos.gov.v1beta1.MsgVote"}, 100000, 0)
+	rows, err := r.db.Query(ctx, queryTxs, paramsTxs...)
 	if err != nil {
 		return nil, 0, err
+	}
+	defer rows.Close()
+
+	txsFilter := make([]string, 0)
+	for rows.Next() {
+		var txHash string
+		var txTime time.Time
+		if err = rows.Scan(&txHash, &txTime); err != nil {
+			return nil, 0, err
+		}
+		txsFilter = append(txsFilter, txHash)
 	}
 
 	exclude := ""
@@ -1030,8 +1051,7 @@ func (r *txs) GetVotesByAccounts(ctx context.Context, accounts []string, exclude
 	}
 
 	query := fmt.Sprintf(`
-	WITH relevant_txes AS (
-		SELECT txes.hash, txes.timestamp
+		SELECT DISTINCT txes.hash, txes.timestamp
 		FROM txes
 		LEFT JOIN messages ON txes.id = messages.tx_id
 		LEFT JOIN message_types ON messages.message_type_id = message_types.id
@@ -1042,17 +1062,10 @@ func (r *txs) GetVotesByAccounts(ctx context.Context, accounts []string, exclude
 		  AND message_event_attribute_keys.key = 'voter'
 		  AND %s message_event_attributes.value = ANY($1)
 		  AND txes.hash = ANY($2)
-	)
-	SELECT DISTINCT hash, timestamp
-	FROM relevant_txes
-	ORDER BY timestamp DESC
-	LIMIT $3::integer OFFSET $4::integer`, exclude)
+		ORDER BY txes.timestamp DESC
+		LIMIT $3::integer OFFSET $4::integer;`, exclude)
 
-	txsFilter := make([]string, 0)
-	for _, tx := range transactions {
-		txsFilter = append(txsFilter, tx.Hash)
-	}
-	rows, err := r.db.Query(ctx, query, accounts, txsFilter, limit, offset)
+	rows, err = r.db.Query(ctx, query, accounts, txsFilter, limit, offset)
 	if err != nil {
 		log.Err(err).Msgf("failed to fetch votes for accounts: %v", accounts)
 		return nil, 0, err
@@ -1084,20 +1097,17 @@ func (r *txs) GetVotesByAccounts(ctx context.Context, accounts []string, exclude
 
 	// calculating total
 	queryAll := fmt.Sprintf(`
-		WITH filtered_txes AS (
-			SELECT DISTINCT txes.hash
-			FROM txes
-			LEFT JOIN messages ON txes.id = messages.tx_id
-			LEFT JOIN message_types ON messages.message_type_id = message_types.id
-			LEFT JOIN message_event_attributes ON messages.id = message_event_attributes.message_event_id
-			LEFT JOIN message_event_attribute_keys ON message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
-			WHERE message_types.message_type = '/cosmos.gov.v1beta1.MsgVote'
-			  AND %s message_event_attributes.value = ANY($1)
-			  AND message_event_attribute_keys.key = 'voter'
-			  AND txes.hash = ANY($2)
-		)
-		SELECT COUNT(*)
-		FROM filtered_txes`, exclude)
+		SELECT COUNT(DISTINCT txes.hash)
+		FROM txes
+		LEFT JOIN messages ON txes.id = messages.tx_id
+		LEFT JOIN message_types ON messages.message_type_id = message_types.id
+		LEFT JOIN message_events ON messages.id = message_events.message_id
+		LEFT JOIN message_event_attributes ON message_events.id = message_event_attributes.message_event_id
+		LEFT JOIN message_event_attribute_keys ON message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
+		WHERE message_types.message_type = '/cosmos.gov.v1beta1.MsgVote'
+		  AND message_event_attribute_keys.key = 'voter'
+		  AND %s message_event_attributes.value = ANY($1)
+		  AND txes.hash = ANY($2);`, exclude)
 	var all int64
 	row := r.db.QueryRow(ctx, queryAll, accounts, txsFilter)
 	if err = row.Scan(&all); err != nil {
