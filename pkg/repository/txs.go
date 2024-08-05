@@ -978,9 +978,8 @@ func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, mes
 		LEFT JOIN message_event_attributes ON message_events.id = message_event_attributes.message_event_id
 		WHERE message_types.message_type = ANY($1)
 		AND message_event_attributes.value IN (%s)
-		GROUP BY txes.id, txes.hash, txes.timestamp
-		HAVING COUNT(DISTINCT message_event_attributes.value) = $2::integer
-		ORDER BY txes.timestamp DESC;`, inClause)
+		HAVING COUNT(DISTINCT message_event_attributes.value) = $2::integer`, inClause)
+
 	args = make([]interface{}, len(values)+params)
 	args[0] = messageType
 	args[1] = len(values)
