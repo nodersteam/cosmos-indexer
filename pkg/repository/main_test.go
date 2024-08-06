@@ -275,6 +275,97 @@ func postgresManualMigration(ctx context.Context) {
 		);`
 	migrations = append(migrations, queryBlockSignatures)
 
+	queryMsgTypes := `create table message_types
+		(
+			id           bigserial primary key,
+			message_type text not null
+		);
+		
+		create unique index idx_message_types_message_type
+			on public.message_types (message_type);
+`
+	migrations = append(migrations, queryMsgTypes)
+
+	queryMsgEventTypes := `create table message_event_types
+		(
+			id   bigserial
+				primary key,
+			type text
+		);
+		
+		create unique index idx_message_event_types_type
+			on public.message_event_types (type);
+		`
+	migrations = append(migrations, queryMsgEventTypes)
+
+	queryMessages := `create table messages
+(
+    id              bigserial
+        primary key,
+    tx_id           bigint
+        constraint fk_messages_tx
+            references public.txes,
+    message_type_id bigint
+        constraint fk_messages_message_type
+            references public.message_types,
+    message_index   bigint,
+    message_bytes   bytea
+);
+
+create unique index "messageIndex"
+    on public.messages (tx_id, message_index);
+
+`
+	migrations = append(migrations, queryMessages)
+
+	queryMessageEvents := `create table public.message_events
+(
+    id                    bigserial
+        primary key,
+    index                 bigint,
+    message_id            bigint
+        constraint fk_message_events_message
+            references public.messages,
+    message_event_type_id bigint
+        constraint fk_message_events_message_event_type
+            references public.message_event_types
+);
+
+create unique index "messageEventIndex"
+    on public.message_events (message_id, index);
+`
+	migrations = append(migrations, queryMessageEvents)
+
+	queryMsgAttrKeys := `create table message_event_attribute_keys
+(
+    id  bigserial primary key,
+    key text
+);
+
+create unique index idx_message_event_attribute_keys_key
+    on public.message_event_attribute_keys (key);
+
+`
+	migrations = append(migrations, queryMsgAttrKeys)
+
+	queryMsgEventAttrs := `create table message_event_attributes
+(
+    id                             bigserial
+        primary key,
+    message_event_id               bigint
+        constraint fk_message_event_attributes_message_event
+            references public.message_events,
+    value                          text,
+    index                          bigint,
+    message_event_attribute_key_id bigint
+        constraint fk_message_event_attributes_message_event_attribute_key
+            references public.message_event_attribute_keys
+);
+create unique index "messageAttributeIndex"
+    on message_event_attributes (message_event_id, index);
+`
+	migrations = append(migrations, queryMsgEventAttrs)
+
 	for _, query := range migrations {
 		_, err := postgresConn.Exec(ctx, query)
 		if err != nil {
