@@ -46,6 +46,7 @@ type Txs interface {
 	GetWalletsWithTx(ctx context.Context, limit int64, offset int64) ([]*model.WalletWithTxs, int64, error)
 	TxCountByAccounts(ctx context.Context, accounts []string) ([]*model.WalletWithTxs, error)
 	GetEvents(ctx context.Context, txID uint) ([]*model.TxEvents, error)
+	UpdateViews(ctx context.Context) error
 }
 
 type TxsFilter struct {
@@ -711,18 +712,7 @@ func (r *txs) GetWalletsWithTx(ctx context.Context, limit int64, offset int64) (
 }
 
 func (r *txs) TxCountByAccounts(ctx context.Context, accounts []string) ([]*model.WalletWithTxs, error) {
-	query := `SELECT
-				 message_event_attributes.value,
-				 COUNT(DISTINCT txes.hash) AS tx_count
-			 FROM txes
-					  LEFT JOIN messages ON txes.id = messages.tx_id
-					  LEFT JOIN message_types ON messages.message_type_id = message_types.id
-					  LEFT JOIN message_events ON messages.id = message_events.message_id
-					  LEFT JOIN message_event_types ON message_events.message_event_type_id = message_event_types.id
-					  LEFT JOIN message_event_attributes ON message_events.id = message_event_attributes.message_event_id
-					  LEFT JOIN message_event_attribute_keys ON message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
-			 WHERE message_event_attribute_keys.key = 'sender' and message_event_attributes.value = ANY($1)
-			 GROUP BY message_event_attributes.value`
+	query := `SELECT account, count(distinct tx_hash) from transactions_normalized where account=ANY($1) GROUP BY account`
 	rows, err := r.db.Query(ctx, query, accounts)
 	if err != nil {
 		return nil, err
@@ -1120,4 +1110,9 @@ func (r *txs) GetVotesByAccounts(ctx context.Context, accounts []string, exclude
 	}
 
 	return data, all, nil
+}
+
+func (r *txs) UpdateViews(ctx context.Context) error {
+	_, err := r.db.Exec(ctx, `REFRESH MATERIALIZED VIEW transactions_normalized;`)
+	return err
 }

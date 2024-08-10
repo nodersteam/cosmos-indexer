@@ -68,6 +68,10 @@ func MigrateModels(db *gorm.DB) error {
 		return err
 	}
 
+	if err := migrateTables(db); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -119,6 +123,40 @@ func migrateIndexes(db *gorm.DB) error {
 		return err
 	}
 
+	return nil
+}
+
+func migrateTables(db *gorm.DB) error {
+	query := `CREATE MATERIALIZED VIEW IF NOT EXISTS transactions_normalized AS
+SELECT
+    message_event_attributes.value as account,
+    txes.hash as hash,
+    txes.timestamp as time,
+    blocks.height as height,
+    MAX(CASE WHEN amount_key.key = 'amount' THEN amount.value END) AS amount_value,
+    REGEXP_REPLACE(MAX(CASE WHEN amount_key.key = 'amount' THEN amount.value END), '[^0-9]', '', 'g') AS amount,
+    REGEXP_REPLACE(MAX(CASE WHEN amount_key.key = 'amount' THEN amount.value END), '[0-9]', '', 'g') AS denom,
+    message_types.message_type as msg_type
+FROM txes
+         LEFT JOIN messages ON txes.id = messages.tx_id
+         LEFT JOIN blocks ON txes.block_id = blocks.id
+         LEFT JOIN message_types ON messages.message_type_id = message_types.id
+         LEFT JOIN message_events ON messages.id = message_events.message_id
+         LEFT JOIN message_event_types ON message_events.message_event_type_id = message_event_types.id
+         LEFT JOIN message_event_attributes ON message_events.id = message_event_attributes.message_event_id
+         LEFT JOIN message_event_attribute_keys ON message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
+         LEFT JOIN message_event_attributes amount ON message_events.id = amount.message_event_id
+         LEFT JOIN message_event_attribute_keys amount_key ON amount.message_event_attribute_key_id = amount_key.id
+WHERE message_event_attribute_keys.key IN ('sender','receiver')
+GROUP BY message_event_attributes.value, txes.hash, txes.timestamp, txes.id, blocks.height, message_types.message_type;
+
+CREATE INDEX IF NOT EXISTS idx_transactions_normalized_account
+    ON transactions_normalized (account);
+`
+	err := db.Raw(query).Error
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
