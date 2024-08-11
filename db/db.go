@@ -76,12 +76,12 @@ func MigrateModels(db *gorm.DB) error {
 }
 
 func migrateIndexes(db *gorm.DB) error {
-	err := db.Raw(`create index if not exists idx_height_desc on blocks (height desc);`).Error
+	err := db.Exec(`create index if not exists idx_height_desc on blocks (height desc);`).Error
 	if err != nil {
 		return err
 	}
 
-	err = db.Raw(`create index if not exists idx_block_id on txes (block_id);
+	err = db.Exec(`create index if not exists idx_block_id on txes (block_id);
 						create index if not exists idx_auth_info_id on txes (auth_info_id);
 						create index if not exists idx_tx_response_id on txes (tx_response_id);
 						create index if not exists idx_fee_id on tx_auth_info (fee_id);
@@ -91,7 +91,7 @@ func migrateIndexes(db *gorm.DB) error {
 		return err
 	}
 
-	err = db.Raw(`create index if not exists idx_tx_complex on txes (id, signatures,
+	err = db.Exec(`create index if not exists idx_tx_complex on txes (id, signatures,
                                                    hash, code, block_id,
                                                    timestamp, memo, timeout_height,
                                                    extension_options,non_critical_extension_options,
@@ -100,12 +100,12 @@ func migrateIndexes(db *gorm.DB) error {
 		return err
 	}
 
-	err = db.Raw(`create index if not exists idx_tx_responses_complex on tx_responses(code, gas_used, gas_wanted, time_stamp, codespace, data, info);`).Error
+	err = db.Exec(`create index if not exists idx_tx_responses_complex on tx_responses(code, gas_used, gas_wanted, time_stamp, codespace, data, info);`).Error
 	if err != nil {
 		return err
 	}
 
-	err = db.Raw(`CREATE INDEX if not exists idx_txes_id ON txes(id);
+	err = db.Exec(`CREATE INDEX if not exists idx_txes_id ON txes(id);
 		CREATE INDEX if not exists idx_messages_tx_id ON messages(tx_id);
 		CREATE INDEX if not exists idx_message_types_id ON message_types(id);
 		CREATE INDEX if not exists idx_message_events_message_id ON message_events(message_id);
@@ -130,13 +130,14 @@ func migrateTables(db *gorm.DB) error {
 	query := `CREATE MATERIALIZED VIEW IF NOT EXISTS transactions_normalized AS
 SELECT
     message_event_attributes.value as account,
-    txes.hash as hash,
+    txes.hash as tx_hash,
     txes.timestamp as time,
     blocks.height as height,
     MAX(CASE WHEN amount_key.key = 'amount' THEN amount.value END) AS amount_value,
     REGEXP_REPLACE(MAX(CASE WHEN amount_key.key = 'amount' THEN amount.value END), '[^0-9]', '', 'g') AS amount,
     REGEXP_REPLACE(MAX(CASE WHEN amount_key.key = 'amount' THEN amount.value END), '[0-9]', '', 'g') AS denom,
-    message_types.message_type as msg_type
+    message_types.message_type as msg_type,
+	message_event_attribute_keys.key as tx_type
 FROM txes
          LEFT JOIN messages ON txes.id = messages.tx_id
          LEFT JOIN blocks ON txes.block_id = blocks.id
@@ -148,12 +149,12 @@ FROM txes
          LEFT JOIN message_event_attributes amount ON message_events.id = amount.message_event_id
          LEFT JOIN message_event_attribute_keys amount_key ON amount.message_event_attribute_key_id = amount_key.id
 WHERE message_event_attribute_keys.key IN ('sender','receiver')
-GROUP BY message_event_attributes.value, txes.hash, txes.timestamp, txes.id, blocks.height, message_types.message_type;
+GROUP BY message_event_attributes.value, txes.hash, txes.timestamp, txes.id, blocks.height, message_types.message_type, message_event_attribute_keys.key;
 
 CREATE INDEX IF NOT EXISTS idx_transactions_normalized_account
     ON transactions_normalized (account);
 `
-	err := db.Raw(query).Error
+	err := db.Exec(query).Error
 	if err != nil {
 		return err
 	}

@@ -48,6 +48,7 @@ const (
 	BlocksService_GetWalletsCountPerPeriod_FullMethodName  = "/blocks.BlocksService/GetWalletsCountPerPeriod"
 	BlocksService_GetWalletsWithTx_FullMethodName          = "/blocks.BlocksService/GetWalletsWithTx"
 	BlocksService_TxCountByAccounts_FullMethodName         = "/blocks.BlocksService/TxCountByAccounts"
+	BlocksService_AccountInfo_FullMethodName               = "/blocks.BlocksService/AccountInfo"
 )
 
 // BlocksServiceClient is the client API for BlocksService service.
@@ -83,6 +84,7 @@ type BlocksServiceClient interface {
 	GetWalletsCountPerPeriod(ctx context.Context, in *GetWalletsCountPerPeriodRequest, opts ...grpc.CallOption) (*GetWalletsCountPerPeriodResponse, error)
 	GetWalletsWithTx(ctx context.Context, in *GetWalletsWithTxRequest, opts ...grpc.CallOption) (*GetWalletsWithTxResponse, error)
 	TxCountByAccounts(ctx context.Context, in *TxCountByAccountsRequest, opts ...grpc.CallOption) (*TxCountByAccountsResponse, error)
+	AccountInfo(ctx context.Context, in *AccountInfoRequest, opts ...grpc.CallOption) (*AccountInfoResponse, error)
 }
 
 type blocksServiceClient struct {
@@ -383,6 +385,16 @@ func (c *blocksServiceClient) TxCountByAccounts(ctx context.Context, in *TxCount
 	return out, nil
 }
 
+func (c *blocksServiceClient) AccountInfo(ctx context.Context, in *AccountInfoRequest, opts ...grpc.CallOption) (*AccountInfoResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AccountInfoResponse)
+	err := c.cc.Invoke(ctx, BlocksService_AccountInfo_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BlocksServiceServer is the server API for BlocksService service.
 // All implementations must embed UnimplementedBlocksServiceServer
 // for forward compatibility
@@ -416,6 +428,7 @@ type BlocksServiceServer interface {
 	GetWalletsCountPerPeriod(context.Context, *GetWalletsCountPerPeriodRequest) (*GetWalletsCountPerPeriodResponse, error)
 	GetWalletsWithTx(context.Context, *GetWalletsWithTxRequest) (*GetWalletsWithTxResponse, error)
 	TxCountByAccounts(context.Context, *TxCountByAccountsRequest) (*TxCountByAccountsResponse, error)
+	AccountInfo(context.Context, *AccountInfoRequest) (*AccountInfoResponse, error)
 	mustEmbedUnimplementedBlocksServiceServer()
 }
 
@@ -509,6 +522,9 @@ func (UnimplementedBlocksServiceServer) GetWalletsWithTx(context.Context, *GetWa
 }
 func (UnimplementedBlocksServiceServer) TxCountByAccounts(context.Context, *TxCountByAccountsRequest) (*TxCountByAccountsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method TxCountByAccounts not implemented")
+}
+func (UnimplementedBlocksServiceServer) AccountInfo(context.Context, *AccountInfoRequest) (*AccountInfoResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AccountInfo not implemented")
 }
 func (UnimplementedBlocksServiceServer) mustEmbedUnimplementedBlocksServiceServer() {}
 
@@ -1045,6 +1061,24 @@ func _BlocksService_TxCountByAccounts_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BlocksService_AccountInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccountInfoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BlocksServiceServer).AccountInfo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BlocksService_AccountInfo_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BlocksServiceServer).AccountInfo(ctx, req.(*AccountInfoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BlocksService_ServiceDesc is the grpc.ServiceDesc for BlocksService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1167,6 +1201,10 @@ var BlocksService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "TxCountByAccounts",
 			Handler:    _BlocksService_TxCountByAccounts_Handler,
+		},
+		{
+			MethodName: "AccountInfo",
+			Handler:    _BlocksService_AccountInfo_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -38,6 +38,7 @@ type Txs interface {
 	GetWalletsCountPerPeriod(ctx context.Context, startDate, endDate time.Time) (int64, error)
 	GetWalletsWithTx(ctx context.Context, limit int64, offset int64) ([]*model.WalletWithTxs, int64, error)
 	TxCountByAccounts(ctx context.Context, accounts []string) ([]*model.WalletWithTxs, error)
+	AccountInfo(ctx context.Context, account string) (*model.AccountInfo, error)
 }
 
 type txs struct {
@@ -166,4 +167,8 @@ func (s *txs) GetWalletsWithTx(ctx context.Context, limit int64, offset int64) (
 
 func (s *txs) TxCountByAccounts(ctx context.Context, accounts []string) ([]*model.WalletWithTxs, error) {
 	return s.txRepo.TxCountByAccounts(ctx, accounts)
+}
+
+func (s *txs) AccountInfo(ctx context.Context, account string) (*model.AccountInfo, error) {
+	return s.txRepo.AccountInfo(ctx, account)
 }

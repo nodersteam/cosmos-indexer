@@ -69,3 +69,15 @@ type WalletWithTxs struct {
 	Account string `json:"account"`
 	TxCount int64  `json:"tx_count"`
 }
+
+type DecCoin struct {
+	Denom  string
+	Amount decimal.Decimal
+}
+
+type AccountInfo struct {
+	TotalTransactions    int64
+	FirstTransactionDate time.Time
+	TotalReceived        DecCoin
+	TotalSpent           DecCoin
+}

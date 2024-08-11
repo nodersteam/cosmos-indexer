@@ -655,3 +655,23 @@ func (r *blocksServer) TxCountByAccounts(ctx context.Context, in *pb.TxCountByAc
 
 	return &pb.TxCountByAccountsResponse{Data: data}, nil
 }
+
+func (r *blocksServer) AccountInfo(ctx context.Context, in *pb.AccountInfoRequest) (*pb.AccountInfoResponse, error) {
+	res, err := r.srvTx.AccountInfo(ctx, in.Account)
+	if err != nil {
+		return &pb.AccountInfoResponse{}, err
+	}
+
+	return &pb.AccountInfoResponse{
+		TxCount:     res.TotalTransactions,
+		FirstTxTime: timestamppb.New(res.FirstTransactionDate),
+		TotalSpent: &pb.Denom{
+			Denom:  res.TotalSpent.Denom,
+			Amount: res.TotalSpent.Amount.String(),
+		},
+		TotalReceived: &pb.Denom{
+			Denom:  res.TotalReceived.Denom,
+			Amount: res.TotalReceived.Amount.String(),
+		},
+	}, nil
+}

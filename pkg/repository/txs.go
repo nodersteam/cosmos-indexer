@@ -45,6 +45,7 @@ type Txs interface {
 	GetWalletsCountPerPeriod(ctx context.Context, startDate, endDate time.Time) (int64, error)
 	GetWalletsWithTx(ctx context.Context, limit int64, offset int64) ([]*model.WalletWithTxs, int64, error)
 	TxCountByAccounts(ctx context.Context, accounts []string) ([]*model.WalletWithTxs, error)
+	AccountInfo(ctx context.Context, account string) (*model.AccountInfo, error)
 	GetEvents(ctx context.Context, txID uint) ([]*model.TxEvents, error)
 	UpdateViews(ctx context.Context) error
 }
@@ -1115,4 +1116,32 @@ func (r *txs) GetVotesByAccounts(ctx context.Context, accounts []string, exclude
 func (r *txs) UpdateViews(ctx context.Context) error {
 	_, err := r.db.Exec(ctx, `REFRESH MATERIALIZED VIEW transactions_normalized;`)
 	return err
+}
+
+func (r *txs) AccountInfo(ctx context.Context, account string) (*model.AccountInfo, error) {
+	query := `SELECT
+    COUNT(DISTINCT txs.tx_hash) as tx_count,
+    MIN(txs.time) as first_tx,
+    SUM(CASE WHEN CAST(txs.tx_type AS TEXT)='sender' THEN  CAST(txs.amount AS BIGINT) ELSE 0 END) as total_spent,
+    SUM(CASE WHEN CAST(txs.tx_type AS TEXT)='receiver' THEN CAST(txs.amount AS BIGINT) ELSE 0 END) as total_received,
+    txs.denom
+from transactions_normalized txs where account = $1
+group by txs.denom;`
+	var acc model.AccountInfo
+	var totalReceived model.DecCoin
+	var totalSpent model.DecCoin
+	var denom string
+
+	err := r.db.QueryRow(ctx, query, account).Scan(&acc.TotalTransactions,
+		&acc.FirstTransactionDate, &totalSpent.Amount, &totalReceived.Amount, &denom)
+	if err != nil {
+		log.Err(err).Msgf("failed to fetch votes for account: %v", account)
+		return nil, err
+	}
+	totalReceived.Denom = denom
+	totalSpent.Denom = denom
+	acc.TotalSpent = totalSpent
+	acc.TotalReceived = totalReceived
+
+	return &acc, nil
 }
