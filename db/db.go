@@ -153,6 +153,8 @@ GROUP BY message_event_attributes.value, txes.hash, txes.timestamp, txes.id, blo
 
 CREATE INDEX IF NOT EXISTS idx_transactions_normalized_account
     ON transactions_normalized (account);
+CREATE INDEX IF NOT EXISTS idx_account_tx_hash 
+	ON transactions_normalized(account, tx_hash);
 `
 	err := db.Exec(query).Error
 	if err != nil {
