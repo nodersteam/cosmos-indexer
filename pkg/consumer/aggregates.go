@@ -78,7 +78,7 @@ func (s *aggregatesConsumer) storeAggregated(ctx context.Context) error {
 
 func (s *aggregatesConsumer) RefreshMaterializedViews(ctx context.Context) error {
 	log.Info().Msgf("RefreshMaterializedViews started %s", time.Now().String())
-	t := time.NewTicker(15 * time.Second)
+	t := time.NewTicker(60 * time.Second)
 
 	for {
 		select {

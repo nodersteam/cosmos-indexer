@@ -1114,7 +1114,7 @@ func (r *txs) GetVotesByAccounts(ctx context.Context, accounts []string, exclude
 }
 
 func (r *txs) UpdateViews(ctx context.Context) error {
-	_, err := r.db.Exec(ctx, `REFRESH MATERIALIZED VIEW transactions_normalized;`)
+	_, err := r.db.Exec(ctx, `REFRESH MATERIALIZED VIEW CONCURRENTLY transactions_normalized WITH DATA;`)
 	return err
 }
 
