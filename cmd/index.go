@@ -414,6 +414,7 @@ func index(cmd *cobra.Command, args []string) {
 
 	aggregatesConsumer := consumer.NewAggregatesConsumer(cache, repoBlocks, repoTxs)
 	go aggregatesConsumer.Consume(ctx)
+	go aggregatesConsumer.RefreshMaterializedViews(ctx)
 
 	wg.Add(1)
 	go idxr.processBlocks(&wg, core.HandleFailedBlock,

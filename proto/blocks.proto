@@ -36,6 +36,7 @@ service BlocksService {
   rpc GetWalletsCountPerPeriod(GetWalletsCountPerPeriodRequest) returns (GetWalletsCountPerPeriodResponse) {}
   rpc GetWalletsWithTx(GetWalletsWithTxRequest) returns (GetWalletsWithTxResponse) {}
   rpc TxCountByAccounts(TxCountByAccountsRequest) returns (TxCountByAccountsResponse) {}
+  rpc AccountInfo(AccountInfoRequest) returns (AccountInfoResponse) {}
 }
 
 
@@ -462,4 +463,15 @@ message TxCountByAccountsRequest{
 
 message TxCountByAccountsResponse{
   repeated WalletWithTxs data = 1;
+}
+
+message AccountInfoRequest{
+  string account = 1;
+}
+
+message AccountInfoResponse{
+  int64 tx_count = 1;
+  google.protobuf.Timestamp first_tx_time = 2;
+  Denom total_spent = 3;
+  Denom total_received = 4;
 }

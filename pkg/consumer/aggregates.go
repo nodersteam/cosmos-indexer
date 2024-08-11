@@ -10,6 +10,7 @@ import (
 
 type AggregatesConsumer interface {
 	Consume(ctx context.Context) error
+	RefreshMaterializedViews(ctx context.Context) error
 }
 
 type aggregatesConsumer struct {
@@ -73,4 +74,21 @@ func (s *aggregatesConsumer) storeAggregated(ctx context.Context) error {
 	}
 
 	return s.totals.AddTotals(ctx, info)
+}
+
+func (s *aggregatesConsumer) RefreshMaterializedViews(ctx context.Context) error {
+	log.Info().Msgf("RefreshMaterializedViews started %s", time.Now().String())
+	t := time.NewTicker(15 * time.Second)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-t.C:
+			if err := s.txs.UpdateViews(ctx); err != nil {
+				log.Err(err).Msg("failed to update views")
+			}
+			log.Info().Msgf("RefreshMaterializedViews finished %s", time.Now().String())
+		}
+	}
 }
