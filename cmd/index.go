@@ -860,7 +860,6 @@ func (idxr *Indexer) doDBUpdates(wg *sync.WaitGroup,
 			dbWrites++
 			numEvents := len(eventData.blockDBWrapper.BeginBlockEvents) + len(eventData.blockDBWrapper.EndBlockEvents)
 			config.Log.Info(fmt.Sprintf("Indexing %v Block Events from block %d", numEvents, eventData.blockDBWrapper.Block.Height))
-			// TODO DYM issue
 			identifierLoggingString := fmt.Sprintf("block %d", eventData.blockDBWrapper.Block.Height)
 
 			indexedDataset, err := dbTypes.IndexBlockEvents(idxr.db, eventData.blockDBWrapper)
