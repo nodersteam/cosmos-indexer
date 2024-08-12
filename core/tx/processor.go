@@ -2,7 +2,6 @@ package tx
 
 import (
 	"fmt"
-	"github.com/DefiantLabs/probe/client"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/multisig"
 	cryptoTypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	"github.com/cosmos/cosmos-sdk/types"
@@ -12,6 +11,7 @@ import (
 	dbTypes "github.com/nodersteam/cosmos-indexer/db"
 	"github.com/nodersteam/cosmos-indexer/db/models"
 	"github.com/nodersteam/cosmos-indexer/util"
+	"github.com/nodersteam/probe/client"
 	"math/big"
 	"time"
 )

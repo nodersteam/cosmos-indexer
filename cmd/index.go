@@ -861,10 +861,9 @@ func (idxr *Indexer) doDBUpdates(wg *sync.WaitGroup,
 			numEvents := len(eventData.blockDBWrapper.BeginBlockEvents) + len(eventData.blockDBWrapper.EndBlockEvents)
 			config.Log.Info(fmt.Sprintf("Indexing %v Block Events from block %d", numEvents, eventData.blockDBWrapper.Block.Height))
 			// TODO DYM issue
-			/*identifierLoggingString := fmt.Sprintf("block %d", eventData.blockDBWrapper.Block.Height)
+			identifierLoggingString := fmt.Sprintf("block %d", eventData.blockDBWrapper.Block.Height)
 
-
-			indexedDataset, err := dbTypes.IndexBlockEvents(idxr.db, idxr.dryRun, eventData.blockDBWrapper, identifierLoggingString)
+			indexedDataset, err := dbTypes.IndexBlockEvents(idxr.db, eventData.blockDBWrapper)
 			if err != nil {
 				config.Log.Fatal(fmt.Sprintf("Error indexing block events for %s.", identifierLoggingString), err)
 			}
@@ -873,7 +872,7 @@ func (idxr *Indexer) doDBUpdates(wg *sync.WaitGroup,
 
 			if err != nil {
 				config.Log.Fatal(fmt.Sprintf("Error indexing custom block events for %s.", identifierLoggingString), err)
-			}*/
+			}
 
 			config.Log.Info(fmt.Sprintf("Finished indexing %v Block Events from block %d", numEvents, eventData.blockDBWrapper.Block.Height))
 		}

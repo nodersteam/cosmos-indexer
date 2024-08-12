@@ -6,9 +6,11 @@ import (
 	"github.com/nodersteam/cosmos-indexer/db/models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"strings"
+	"unicode/utf8"
 )
 
-func IndexBlockEvents(db *gorm.DB, dryRun bool, blockDBWrapper *BlockDBWrapper, identifierLoggingString string) (*BlockDBWrapper, error) {
+func IndexBlockEvents(db *gorm.DB, blockDBWrapper *BlockDBWrapper) (*BlockDBWrapper, error) {
 	err := db.Transaction(func(dbTransaction *gorm.DB) error {
 		if err := dbTransaction.
 			Exec("DELETE FROM failed_event_blocks WHERE height = ? AND blockchain_id = ?", blockDBWrapper.Block.Height, blockDBWrapper.Block.ChainID).
@@ -164,6 +166,9 @@ func IndexBlockEvents(db *gorm.DB, dryRun bool, blockDBWrapper *BlockDBWrapper, 
 				for attrIndex := range currAttributes {
 					currAttributes[attrIndex].BlockEventID = blockDBWrapper.BeginBlockEvents[index].BlockEvent.ID
 					currAttributes[attrIndex].BlockEvent = blockDBWrapper.BeginBlockEvents[index].BlockEvent
+					if !utf8.ValidString(currAttributes[attrIndex].Value) || strings.Contains(currAttributes[attrIndex].Value, "\x00") {
+						currAttributes[attrIndex].Value = "-"
+					}
 					currAttributes[attrIndex].BlockEventAttributeKey = blockDBWrapper.UniqueBlockEventAttributeKeys[currAttributes[attrIndex].BlockEventAttributeKey.Key]
 				}
 				for ii := range currAttributes {
@@ -176,6 +181,9 @@ func IndexBlockEvents(db *gorm.DB, dryRun bool, blockDBWrapper *BlockDBWrapper, 
 				for attrIndex := range currAttributes {
 					currAttributes[attrIndex].BlockEventID = blockDBWrapper.EndBlockEvents[index].BlockEvent.ID
 					currAttributes[attrIndex].BlockEvent = blockDBWrapper.EndBlockEvents[index].BlockEvent
+					if !utf8.ValidString(currAttributes[attrIndex].Value) || strings.Contains(currAttributes[attrIndex].Value, "\x00") {
+						currAttributes[attrIndex].Value = "-"
+					}
 					currAttributes[attrIndex].BlockEventAttributeKey =
 						blockDBWrapper.UniqueBlockEventAttributeKeys[currAttributes[attrIndex].BlockEventAttributeKey.Key]
 				}
