@@ -10,6 +10,11 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+type CacheConsumer interface {
+	RunBlocks(ctx context.Context) error
+	RunTransactions(ctx context.Context) error
+}
+
 type cacheConsumer struct {
 	blocksCh chan *model.BlockInfo
 	txCh     chan *models.Tx
@@ -18,7 +23,7 @@ type cacheConsumer struct {
 }
 
 func NewCacheConsumer(blocks repository.BlocksCache, blocksCh chan *model.BlockInfo,
-	txCh chan *models.Tx, txs repository.TransactionsCache) *cacheConsumer {
+	txCh chan *models.Tx, txs repository.TransactionsCache) CacheConsumer {
 	return &cacheConsumer{blocks: blocks, blocksCh: blocksCh, txCh: txCh, txs: txs}
 }
 

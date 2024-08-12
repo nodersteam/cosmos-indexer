@@ -383,7 +383,9 @@ func (r *blocksServer) CacheAggregated(ctx context.Context,
 		Wallets: &pb.TotalWallets{
 			Total:     info.Wallets.Total,
 			Count_24H: info.Wallets.Count24H,
-			Count_48H: info.Wallets.Count48H},
+			Count_48H: info.Wallets.Count48H,
+			Count_30D: info.Wallets.Count30D,
+		},
 	}, nil
 }
 
@@ -603,6 +605,73 @@ func (r *blocksServer) GetVotesByAccounts(ctx context.Context,
 			Limit:  in.Limit.Limit,
 			Offset: in.Limit.Offset,
 			All:    all,
+		},
+	}, nil
+}
+
+func (r *blocksServer) GetWalletsCountPerPeriod(ctx context.Context,
+	in *pb.GetWalletsCountPerPeriodRequest) (*pb.GetWalletsCountPerPeriodResponse, error) {
+	count, err := r.srvTx.GetWalletsCountPerPeriod(ctx, in.Start.AsTime(), in.End.AsTime())
+	if err != nil {
+		return &pb.GetWalletsCountPerPeriodResponse{}, err
+	}
+	return &pb.GetWalletsCountPerPeriodResponse{Result: count}, nil
+}
+
+func (r *blocksServer) GetWalletsWithTx(ctx context.Context, in *pb.GetWalletsWithTxRequest) (*pb.GetWalletsWithTxResponse, error) {
+	res, total, err := r.srvTx.GetWalletsWithTx(ctx, in.Limit.Limit, in.Limit.Offset)
+	if err != nil {
+		return &pb.GetWalletsWithTxResponse{}, err
+	}
+
+	data := make([]*pb.WalletWithTxs, 0)
+	for _, tx := range res {
+		data = append(data, &pb.WalletWithTxs{
+			Account: tx.Account,
+			TxCount: tx.TxCount,
+		})
+	}
+
+	return &pb.GetWalletsWithTxResponse{Data: data, Result: &pb.Result{
+		Limit:  in.Limit.Limit,
+		Offset: in.Limit.Offset,
+		All:    total,
+	}}, nil
+}
+
+func (r *blocksServer) TxCountByAccounts(ctx context.Context, in *pb.TxCountByAccountsRequest) (*pb.TxCountByAccountsResponse, error) {
+	res, err := r.srvTx.TxCountByAccounts(ctx, in.Accounts)
+	if err != nil {
+		return &pb.TxCountByAccountsResponse{}, err
+	}
+
+	data := make([]*pb.WalletWithTxs, 0)
+	for _, tx := range res {
+		data = append(data, &pb.WalletWithTxs{
+			Account: tx.Account,
+			TxCount: tx.TxCount,
+		})
+	}
+
+	return &pb.TxCountByAccountsResponse{Data: data}, nil
+}
+
+func (r *blocksServer) AccountInfo(ctx context.Context, in *pb.AccountInfoRequest) (*pb.AccountInfoResponse, error) {
+	res, err := r.srvTx.AccountInfo(ctx, in.Account)
+	if err != nil {
+		return &pb.AccountInfoResponse{}, err
+	}
+
+	return &pb.AccountInfoResponse{
+		TxCount:     res.TotalTransactions,
+		FirstTxTime: timestamppb.New(res.FirstTransactionDate),
+		TotalSpent: &pb.Denom{
+			Denom:  res.TotalSpent.Denom,
+			Amount: res.TotalSpent.Amount.String(),
+		},
+		TotalReceived: &pb.Denom{
+			Denom:  res.TotalReceived.Denom,
+			Amount: res.TotalReceived.Amount.String(),
 		},
 	}, nil
 }

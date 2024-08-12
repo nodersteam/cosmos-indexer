@@ -32,9 +32,13 @@ type Txs interface {
 	GetValidatorHistoryEvents(ctx context.Context, accountAddress string,
 		limit int64, offset int64) ([]*models.Tx, int64, error)
 	TransactionsByEventValue(ctx context.Context, values []string,
-		messageType string, limit int64, offset int64) ([]*models.Tx, int64, error)
+		messageType []string, limit int64, offset int64) ([]*models.Tx, int64, error)
 	GetVotesByAccounts(ctx context.Context, accounts []string, excludeAcc bool, voteType string,
 		proposalID int, limit int64, offset int64) ([]*models.Tx, int64, error)
+	GetWalletsCountPerPeriod(ctx context.Context, startDate, endDate time.Time) (int64, error)
+	GetWalletsWithTx(ctx context.Context, limit int64, offset int64) ([]*model.WalletWithTxs, int64, error)
+	TxCountByAccounts(ctx context.Context, accounts []string) ([]*model.WalletWithTxs, error)
+	AccountInfo(ctx context.Context, account string) (*model.AccountInfo, error)
 }
 
 type txs struct {
@@ -87,6 +91,15 @@ func (s *txs) GetTxByHash(ctx context.Context, txHash string) (*models.Tx, error
 	if len(transactions) == 0 {
 		return nil, fmt.Errorf("not found")
 	}
+
+	for _, tx := range transactions {
+		events, err := s.txRepo.GetEvents(ctx, tx.ID)
+		if err != nil {
+			log.Err(err).Msgf("error getting events for tx %s", tx.ID)
+			continue
+		}
+		tx.Events = events
+	}
 	txRes := transactions[0]
 	return txRes, nil
 }
@@ -135,11 +148,27 @@ func (s *txs) GetValidatorHistoryEvents(ctx context.Context, accountAddress stri
 }
 
 func (s *txs) TransactionsByEventValue(ctx context.Context, values []string,
-	messageType string, limit int64, offset int64) ([]*models.Tx, int64, error) {
-	return s.txRepo.TransactionsByEventValue(ctx, values, messageType, limit, offset)
+	messageType []string, limit int64, offset int64) ([]*models.Tx, int64, error) {
+	return s.txRepo.TransactionsByEventValue(ctx, values, messageType, true, limit, offset)
 }
 
 func (s *txs) GetVotesByAccounts(ctx context.Context, accounts []string, excludeAcc bool, voteType string,
 	proposalID int, limit int64, offset int64) ([]*models.Tx, int64, error) {
 	return s.txRepo.GetVotesByAccounts(ctx, accounts, excludeAcc, voteType, proposalID, limit, offset)
+}
+
+func (s *txs) GetWalletsCountPerPeriod(ctx context.Context, startDate, endDate time.Time) (int64, error) {
+	return s.txRepo.GetWalletsCountPerPeriod(ctx, startDate, endDate)
+}
+
+func (s *txs) GetWalletsWithTx(ctx context.Context, limit int64, offset int64) ([]*model.WalletWithTxs, int64, error) {
+	return s.txRepo.GetWalletsWithTx(ctx, limit, offset)
+}
+
+func (s *txs) TxCountByAccounts(ctx context.Context, accounts []string) ([]*model.WalletWithTxs, error) {
+	return s.txRepo.TxCountByAccounts(ctx, accounts)
+}
+
+func (s *txs) AccountInfo(ctx context.Context, account string) (*model.AccountInfo, error) {
+	return s.txRepo.AccountInfo(ctx, account)
 }

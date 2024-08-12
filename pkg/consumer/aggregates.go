@@ -2,12 +2,16 @@ package consumer
 
 import (
 	"context"
-	"fmt"
 	"github.com/nodersteam/cosmos-indexer/pkg/model"
 	"github.com/nodersteam/cosmos-indexer/pkg/repository"
 	"github.com/rs/zerolog/log"
 	"time"
 )
+
+type AggregatesConsumer interface {
+	Consume(ctx context.Context) error
+	RefreshMaterializedViews(ctx context.Context) error
+}
 
 type aggregatesConsumer struct {
 	totals repository.TotalsCache
@@ -15,7 +19,7 @@ type aggregatesConsumer struct {
 	txs    repository.Txs
 }
 
-func NewAggregatesConsumer(totals repository.TotalsCache, blocks repository.Blocks, txs repository.Txs) *aggregatesConsumer {
+func NewAggregatesConsumer(totals repository.TotalsCache, blocks repository.Blocks, txs repository.Txs) AggregatesConsumer {
 	return &aggregatesConsumer{totals: totals, blocks: blocks, txs: txs}
 }
 
@@ -34,8 +38,6 @@ func (s *aggregatesConsumer) Consume(ctx context.Context) error {
 			}
 		}
 	}
-
-	return fmt.Errorf("aggregatesConsumer failed")
 }
 
 func (s *aggregatesConsumer) storeAggregated(ctx context.Context) error {
@@ -72,4 +74,21 @@ func (s *aggregatesConsumer) storeAggregated(ctx context.Context) error {
 	}
 
 	return s.totals.AddTotals(ctx, info)
+}
+
+func (s *aggregatesConsumer) RefreshMaterializedViews(ctx context.Context) error {
+	log.Info().Msgf("RefreshMaterializedViews started %s", time.Now().String())
+	t := time.NewTicker(60 * time.Second)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-t.C:
+			if err := s.txs.UpdateViews(ctx); err != nil {
+				log.Err(err).Msg("failed to update views")
+			}
+			log.Info().Msgf("RefreshMaterializedViews finished %s", time.Now().String())
+		}
+	}
 }

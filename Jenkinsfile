@@ -5,30 +5,14 @@ pipeline {
     triggers {
         githubPush()
     }
+    options {
+        skipDefaultCheckout()
+    }
 
     stages {
-        stage('Checkout Code') {
-            steps {
-                script {
-                    env.DOCKER_APP = "${JOB_NAME}"
-                    env.DOCKER_NET_NAME = "vpcbr"
-                    env.POSTGRES_CONTAINER = "${env.DOCKER_APP}_postgres"
-                    env.REDIS_CONTAINER = "redis"
-                    env.GIT_TAG = sh(returnStdout: true, script: "git tag --contains | head -1").trim()
-                    env.NEXUS_REGISTRY = "nexus.noders.team:5002"
-                    env.IMAGE_NAME = "${env.NEXUS_REGISTRY}/${env.DOCKER_APP}:${env.GIT_TAG}"
-                }
-            }
-        }
-        stage('Build Docker Image') {
-            steps {
-                checkout scm
-                buildApplication()
-            }
-        }
         stage('Deploy') {
             steps {
-                deployApplication()
+                buildAndDeployApplication()
             }
         }
     }
@@ -71,7 +55,14 @@ void buildApplication() {
     sh script: "docker push ${env.IMAGE_NAME}"
 }
 
-void deployApplication() {
+void buildAndDeployApplication() {
+    env.DOCKER_APP = "${JOB_NAME}"
+    env.DOCKER_NET_NAME = "vpcbr"
+    env.POSTGRES_CONTAINER = "${env.DOCKER_APP}_postgres"
+    env.REDIS_CONTAINER = "redis"
+    env.GIT_TAG = sh(returnStdout: true, script: "git tag --contains | head -1").trim()
+    env.NEXUS_REGISTRY = "nexus.noders.team:5002"
+
     // Get agents by label
     env.nodes = Jenkins.instance.getLabel('DEPLOY').getNodes().collect { it.getNodeName() }
     def firstString = env.nodes - ~/^\[\s*/
@@ -83,7 +74,19 @@ void deployApplication() {
             if (Jenkins.instance.getNode(processedString).toComputer().isOnline()) {
                 node(processedString) {
                     echo "${processedString}"
+                    env.agent = "${processedString}"
+                    if (env.NODE_NAME == "dymension") {
+                        checkoutBranch("feature/dymension-updates")
+                        env.IMAGE_NAME = "${env.NEXUS_REGISTRY}/${env.DOCKER_APP}:dymension-updates"
+                    } else {
+                        checkout scm
+                        env.TAG = sh(script: 'git describe --tags', returnStdout: true).trim()
+                        echo "The current tag is ${env.TAG}"
+                        env.IMAGE_NAME = "${env.NEXUS_REGISTRY}/${env.DOCKER_APP}:${env.TAG}"
+                    }
                     dockerLogin()
+                    sh "docker build -t ${env.IMAGE_NAME} --build-arg TARGETPLATFORM=linux/amd64 ."
+                    sh script: "docker push ${env.IMAGE_NAME}"
                     createDockerNetwork()
                     runPostgres()
                     runRedis()
@@ -99,7 +102,7 @@ void createDockerNetwork() {
     def networkStatus = sh(script: "docker network ls | grep ${env.DOCKER_NET_NAME} && echo true || echo false", returnStdout: true).trim()
     if (networkStatus.contains("false")) {
         sh script: "docker network create --driver=bridge --subnet=10.5.0.0/16 --gateway=10.5.0.1 ${env.DOCKER_NET_NAME}",
-           label: "Create docker network"
+                label: "Create docker network"
     }
 }
 
@@ -164,6 +167,17 @@ void runMongo() {
 
 void runApplication() {
     def appStatus = sh(script: "docker ps -a | grep ${env.DOCKER_APP} && echo true || echo false", returnStdout: true).trim()
+    if (env.agent == "celestia") {
+        env.probeRpc = "http://65.109.54.91:11657"
+        env.probeAccountPrefix = "celestia"
+        env.probeChainID = "celestia"
+        env.probeChainName = "celestia"
+    } else if (env.agent == "dymension") {
+        env.probeRpc = "http://65.109.54.91:26657"
+        env.probeAccountPrefix = "dym"
+        env.probeChainID = "dymension_1100-1"
+        env.probeChainName = "dymension"
+    }
     if (appStatus.contains("true")) {
         sh script: "docker rm -fv ${env.DOCKER_APP}", label: "Remove ${env.DOCKER_APP} container"
     }
@@ -179,16 +193,16 @@ void runApplication() {
             /bin/sh -c "/bin/cosmos-indexer index \
               --log.pretty = true \
               --log.level = info \
-              --base.start-block 1939578 \
+              --base.start-block 1954077 \
               --base.end-block -1 \
               --base.throttling 2.005 \
               --base.rpc-workers 1 \
               --base.index-transactions true \
               --base.index-block-events true \
-              --probe.rpc http://65.109.54.91:11657  \
-              --probe.account-prefix celestia \
-              --probe.chain-id celestia \
-              --probe.chain-name celestia \
+              --probe.rpc ${env.probeRpc} \
+              --probe.account-prefix ${env.probeAccountPrefix} \
+              --probe.chain-id ${env.probeChainID} \
+              --probe.chain-name ${env.probeChainName} \
               --database.host ${env.POSTGRES_CONTAINER} \
               --database.database postgres \
               --database.user taxuser \
@@ -212,4 +226,12 @@ void cleanUp() {
     } catch (Exception e) {
         echo 'Error cleaning dirs: ' + e
     }
+}
+
+void checkoutBranch(branch) {
+    checkout ([$class: 'GitSCM',
+               branches: [[ name: "${branch}" ]],
+               userRemoteConfigs: [[
+               credentialsId: 'robert_gh',
+               url: "https://github.com/nodersteam/cosmos-indexer.git"]]])
 }

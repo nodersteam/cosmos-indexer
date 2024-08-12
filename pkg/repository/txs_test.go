@@ -6,6 +6,7 @@ import (
 	"fmt"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/jackc/pgx/v5"
+	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
 	"testing"
 	"time"
@@ -399,4 +400,180 @@ func TestTxs_VolumePerPeriod(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, total24H, decimal.RequireFromString("5109"))
 	require.Equal(t, total30D, decimal.RequireFromString("5136"))
+}
+
+func TestTxs_TransactionsByEventValue(t *testing.T) {
+	defer func() {
+		postgresConn.Exec(context.Background(), `delete from txes`)
+		postgresConn.Exec(context.Background(), `delete from message_types`)
+		postgresConn.Exec(context.Background(), `delete from message_event_types`)
+		postgresConn.Exec(context.Background(), `delete from messages`)
+		postgresConn.Exec(context.Background(), `delete from message_events`)
+		postgresConn.Exec(context.Background(), `delete from message_event_attribute_keys`)
+		postgresConn.Exec(context.Background(), `delete from message_event_attributes`)
+	}()
+
+	txes := `INSERT INTO txes (id, hash, code, block_id, signatures, timestamp, memo, timeout_height,
+			                  extension_options, non_critical_extension_options, auth_info_id, tx_response_id)
+												VALUES
+												  (100, 'hash1', 123, 1, '{"signature1", "signature2"}', $1,
+												   'Random memo 1', 100, '{"option1", "option2"}', '{"non_critical_option1", "non_critical_option2"}', 1, 1),
+												  (101, 'hash2', 456, 2, '{"signature3", "signature4"}', $2,
+												   'Random memo 2', 200, '{"option3", "option4"}', '{"non_critical_option3", "non_critical_option4"}', 2, 2),
+												  (102, 'hash3', 789, 3, '{"signature5", "signature6"}', $3,
+												   'Random memo 3', 300, '{"option5", "option6"}', '{"non_critical_option5", "non_critical_option6"}', 3, 3);
+												  `
+	msgMessageType := `
+INSERT INTO message_types(id, message_type) values 
+                                                (10, '/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward'), 
+                                                (11, '/cosmos.bank.v1beta1.MsgSend'), 
+                                                (12, '/cosmos.gov.v1.MsgVote');
+`
+
+	msgMessageEventTypes := `
+INSERT INTO message_event_types(id, type) values (20, 'proposal_vote'),  (21, 'transfer'), (22, 'coin_spent'), (23, 'coin_received');
+`
+	msgMessages := `
+INSERT INTO messages(id, tx_id, message_type_id, message_index) 
+values (30, 100, 10, 1),
+(31, 101, 10, 2),
+(32, 101, 11, 3),
+(33, 102, 12, 4);
+`
+	msgMessageEvents := `
+INSERT INTO message_events(id, index, message_id, message_event_type_id) values (40, 1, 30, 21),
+(41, 1, 31, 23),
+(42, 2, 32, 22),
+(43, 1, 33, 20);
+`
+	msgMessageEventAtrributesKeys := `
+INSERT INTO message_event_attribute_keys(id, key) values (50, 'voter'),
+(51, 'receiver'),
+(53, 'sender'),
+(54, 'proposal_id'),
+(55, 'delegator');
+`
+	msgMessageEventsAttributes := `
+INSERT INTO message_event_attributes(id, message_event_id, value, index, message_event_attribute_key_id)
+	values 
+	    (60, 40, 'celestia1v8hn5eu8e2amqq2t2hfu8cv3wknmvxvvsryggh', 1, 55),
+		(61, 41, 'celestia1v8hn5eu8e2amqq2t2hfu8cv3wknmvxvvsryggh', 2, 51),
+		(62, 42, 'celestia1v8hn5eu8e2amqq2t2hfu8cv3wknmvxvvsryggh', 3, 53),
+		(63, 43, 'celestia1v8hn5eu8e2amqq2t2hfu8cv3wknmvxvvsryggh', 4, 50),
+		(64, 43, '2', 5, 54);
+`
+	initTime := time.Now().UTC()
+	batch := &pgx.Batch{}
+	batch.Queue(txes, initTime, initTime.Add(-1*time.Hour), initTime.Add(-2*time.Hour))
+	batch.Queue(msgMessageType)
+	batch.Queue(msgMessageEventTypes)
+	batch.Queue(msgMessages)
+	batch.Queue(msgMessageEvents)
+	batch.Queue(msgMessageEventAtrributesKeys)
+	batch.Queue(msgMessageEventsAttributes)
+
+	res := postgresConn.SendBatch(context.Background(), batch)
+	defer func(res pgx.BatchResults) {
+		err := res.Close()
+		require.NoError(t, err)
+	}(res)
+
+	for i := 0; i < batch.Len(); i++ {
+		_, err := res.Exec()
+		if err != nil {
+			log.Info().Msgf("error processing batch %d", i)
+			require.NoError(t, err)
+		}
+	}
+
+	type params struct {
+		values   []string
+		msgTypes []string
+		limit    int64
+		offset   int64
+	}
+
+	type expected struct {
+		total    int64
+		resTotal int
+	}
+
+	tests := []struct {
+		name     string
+		request  params
+		response expected
+	}{
+		{"success",
+			params{
+				values:   []string{"2"},
+				msgTypes: []string{"/cosmos.gov.v1.MsgVote"},
+				limit:    10,
+				offset:   0,
+			},
+			expected{
+				1,
+				1,
+			},
+		},
+		{"success - multiple types",
+			params{
+				values: []string{"celestia1v8hn5eu8e2amqq2t2hfu8cv3wknmvxvvsryggh"},
+				msgTypes: []string{"/cosmos.bank.v1beta1.MsgSend",
+					"/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward"},
+				limit:  10,
+				offset: 0,
+			},
+			expected{
+				2,
+				2,
+			},
+		},
+		{"success - multiple types, limits",
+			params{
+				values: []string{"celestia1v8hn5eu8e2amqq2t2hfu8cv3wknmvxvvsryggh"},
+				msgTypes: []string{"/cosmos.bank.v1beta1.MsgSend",
+					"/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward"},
+				limit:  1,
+				offset: 0,
+			},
+			expected{
+				2,
+				1,
+			},
+		},
+		{"success - multiple values",
+			params{
+				values:   []string{"2", "celestia1v8hn5eu8e2amqq2t2hfu8cv3wknmvxvvsryggh"},
+				msgTypes: []string{"/cosmos.gov.v1.MsgVote"},
+				limit:    10,
+				offset:   0,
+			},
+			expected{
+				1,
+				1,
+			},
+		},
+		{"success - not exists",
+			params{
+				values:   []string{"7", "celestia1v8hn5eu8e2amqq2t2hfu8cv3wknmvxvvsryggh"},
+				msgTypes: []string{"/cosmos.gov.v1.MsgVote"},
+				limit:    10,
+				offset:   0,
+			},
+			expected{
+				0,
+				0,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			txsRepo := NewTxs(postgresConn)
+			resTx, total, err := txsRepo.TransactionsByEventValue(context.Background(),
+				tt.request.values, tt.request.msgTypes, false, tt.request.limit, tt.request.offset)
+			require.NoError(t, err)
+			require.Equal(t, total, tt.response.total)
+			require.Len(t, resTx, tt.response.resTotal)
+		})
+	}
 }

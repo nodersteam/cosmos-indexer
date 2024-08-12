@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jackc/pgx/v5"
+	"github.com/nodersteam/cosmos-indexer/clients"
+	"github.com/nodersteam/cosmos-indexer/core/tx"
 	"github.com/nodersteam/cosmos-indexer/pkg/consumer"
 	"github.com/nodersteam/cosmos-indexer/pkg/model"
 	"github.com/redis/go-redis/v9"
@@ -36,7 +38,6 @@ import (
 	"github.com/nodersteam/cosmos-indexer/filter"
 	"github.com/nodersteam/cosmos-indexer/parsers"
 	"github.com/nodersteam/cosmos-indexer/probe"
-	"github.com/nodersteam/cosmos-indexer/rpc"
 	"github.com/spf13/cobra"
 
 	migrate "github.com/xakep666/mongo-migrate"
@@ -56,6 +57,8 @@ type Indexer struct {
 	customBeginBlockParserTrackers      map[string]models.BlockEventParser    // Used for tracking block event parsers in the database
 	customEndBlockParserTrackers        map[string]models.BlockEventParser    // Used for tracking block event parsers in the database
 	customModels                        []any
+	rpcClient                           clients.ChainRPC
+	txParser                            tx.Parser
 }
 
 type blockEventFilterRegistries struct {
@@ -233,31 +236,35 @@ func setupIndexer() *Indexer {
 	var err error
 
 	// Setup chain specific stuff
-	core.ChainSpecificMessageTypeHandlerBootstrap(indexer.cfg.Probe.ChainID)
+	tx.ChainSpecificMessageTypeHandlerBootstrap(indexer.cfg.Probe.ChainID)
 
 	config.SetChainConfig(indexer.cfg.Probe.AccountPrefix)
 
 	indexer.cl = probe.GetProbeClient(indexer.cfg.Probe)
+	indexer.rpcClient = clients.NewChainRPC(indexer.cl)
 
 	// Depending on the app configuration, wait for the chain to catch up
-	chainCatchingUp, err := rpc.IsCatchingUp(indexer.cl)
+	chainCatchingUp, err := indexer.rpcClient.IsCatchingUp()
 	for indexer.cfg.Base.WaitForChain && chainCatchingUp && err == nil {
 		// Wait between status checks, don't spam the node with requests
 		config.Log.Debug("Chain is still catching up, please wait or disable check in config.")
 		time.Sleep(time.Second * time.Duration(indexer.cfg.Base.WaitForChainDelay))
-		chainCatchingUp, err = rpc.IsCatchingUp(indexer.cl)
+		chainCatchingUp, err = indexer.rpcClient.IsCatchingUp()
 
 		// This EOF error pops up from time to time and is unpredictable
 		// It is most likely an error on the node, we would need to see any error logs on the node side
 		// Try one more time
 		if err != nil && strings.HasSuffix(err.Error(), "EOF") {
 			time.Sleep(time.Second * time.Duration(indexer.cfg.Base.WaitForChainDelay))
-			chainCatchingUp, err = rpc.IsCatchingUp(indexer.cl)
+			chainCatchingUp, err = indexer.rpcClient.IsCatchingUp()
 		}
 	}
 	if err != nil {
 		config.Log.Fatal("Error querying chain status.", err)
 	}
+
+	txParser := tx.NewParser(indexer.db, indexer.cl, tx.NewProcessor(indexer.cl))
+	indexer.txParser = txParser
 
 	return &indexer
 }
@@ -304,9 +311,17 @@ func index(cmd *cobra.Command, args []string) {
 	// Workers read from the enqueued blocks and query blockchain data from the RPC server.
 	var blockRPCWaitGroup sync.WaitGroup
 	blockRPCWorkerDataChan := make(chan core.IndexerBlockEventData, 10)
+
+	worker := core.NewBlockRPCWorker(
+		idxr.cfg.Probe.ChainID,
+		idxr.cfg,
+		idxr.cl,
+		idxr.db,
+		idxr.rpcClient,
+	)
 	for i := 0; i < rpcQueryThreads; i++ {
 		blockRPCWaitGroup.Add(1)
-		go core.BlockRPCWorker(&blockRPCWaitGroup, blockEnqueueChan, dbChainID, idxr.cfg.Probe.ChainID, idxr.cfg, idxr.cl, idxr.db, blockRPCWorkerDataChan)
+		go worker.Worker(&blockRPCWaitGroup, blockEnqueueChan, blockRPCWorkerDataChan)
 	}
 
 	go func() {
@@ -399,6 +414,7 @@ func index(cmd *cobra.Command, args []string) {
 
 	aggregatesConsumer := consumer.NewAggregatesConsumer(cache, repoBlocks, repoTxs)
 	go aggregatesConsumer.Consume(ctx)
+	go aggregatesConsumer.RefreshMaterializedViews(ctx)
 
 	wg.Add(1)
 	go idxr.processBlocks(&wg, core.HandleFailedBlock,
@@ -440,12 +456,12 @@ func index(cmd *cobra.Command, args []string) {
 			config.Log.Fatal("Failed to generate block enqueue function", err)
 		}
 	case idxr.cfg.Base.BlockInputFile != "":
-		idxr.blockEnqueueFunction, err = core.GenerateBlockFileEnqueueFunction(idxr.db, *idxr.cfg, idxr.cl, dbChainID, idxr.cfg.Base.BlockInputFile)
+		idxr.blockEnqueueFunction, err = core.GenerateBlockFileEnqueueFunction(*idxr.cfg, idxr.cfg.Base.BlockInputFile, idxr.rpcClient)
 		if err != nil {
 			config.Log.Fatal("Failed to generate block enqueue function", err)
 		}
 	default:
-		idxr.blockEnqueueFunction, err = core.GenerateDefaultEnqueueFunction(idxr.db, *idxr.cfg, idxr.cl, dbChainID)
+		idxr.blockEnqueueFunction, err = core.GenerateDefaultEnqueueFunction(idxr.db, *idxr.cfg, idxr.cl, dbChainID, idxr.rpcClient)
 		if err != nil {
 			config.Log.Fatal("Failed to generate block enqueue function", err)
 		}
@@ -608,7 +624,7 @@ func GetBlockEventsStartIndexHeight(db *gorm.DB, chainID uint) int64 {
 func (idxr *Indexer) GetIndexerStartingHeight(chainID uint) int64 {
 	// If the start height is set to -1, resume from the highest block already indexed
 	if idxr.cfg.Base.StartBlock == -1 {
-		latestBlock, err := rpc.GetLatestBlockHeight(idxr.cl)
+		latestBlock, err := idxr.rpcClient.GetLatestBlockHeight()
 		if err != nil {
 			log.Fatalf("Error getting blockchain latest height. Err: %v", err)
 		}
@@ -719,11 +735,11 @@ func (idxr *Indexer) processBlocks(wg *sync.WaitGroup,
 			var err error
 
 			if blockData.GetTxsResponse != nil {
-				config.Log.Info("Processing TXs from RPC TX Search response")
-				txDBWrappers, _, err = core.ProcessRPCTXs(idxr.db, idxr.cl, idxr.messageTypeFilters, blockData.GetTxsResponse)
+				config.Log.Infof("Processing TXs from RPC TX Search response size: %d", len(blockData.GetTxsResponse.Txs))
+				txDBWrappers, _, err = idxr.txParser.ProcessRPCTXs(idxr.messageTypeFilters, blockData.GetTxsResponse)
 			} else if blockData.BlockResultsData != nil {
 				config.Log.Info("Processing TXs from BlockResults search response")
-				txDBWrappers, _, err = core.ProcessRPCBlockByHeightTXs(idxr.db, idxr.cl, idxr.messageTypeFilters, blockData.BlockData, blockData.BlockResultsData)
+				txDBWrappers, _, err = idxr.txParser.ProcessRPCBlockByHeightTXs(idxr.messageTypeFilters, blockData.BlockData, blockData.BlockResultsData)
 			}
 
 			if err != nil {

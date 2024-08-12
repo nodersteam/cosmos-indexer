@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -37,10 +38,16 @@ type Txs interface {
 		limit int64, offset int64) ([]*models.Tx, int64, error)
 	GetValidatorHistory(ctx context.Context, accountAddress string,
 		limit int64, offset int64) ([]*models.Tx, int64, error)
-	TransactionsByEventValue(ctx context.Context, values []string, messageType string,
+	TransactionsByEventValue(ctx context.Context, values []string, messageType []string, includeEvents bool,
 		limit int64, offset int64) ([]*models.Tx, int64, error)
 	GetVotesByAccounts(ctx context.Context, accounts []string, excludeAccounts bool, voteType string,
 		proposalID int, limit int64, offset int64) ([]*models.Tx, int64, error)
+	GetWalletsCountPerPeriod(ctx context.Context, startDate, endDate time.Time) (int64, error)
+	GetWalletsWithTx(ctx context.Context, limit int64, offset int64) ([]*model.WalletWithTxs, int64, error)
+	TxCountByAccounts(ctx context.Context, accounts []string) ([]*model.WalletWithTxs, error)
+	AccountInfo(ctx context.Context, account string) (*model.AccountInfo, error)
+	GetEvents(ctx context.Context, txID uint) ([]*model.TxEvents, error)
+	UpdateViews(ctx context.Context) error
 }
 
 type TxsFilter struct {
@@ -318,72 +325,75 @@ func (r *txs) Transactions(ctx context.Context, limit int64, offset int64, filte
 		rows, err = r.db.Query(ctx, query, limit, offset)
 	}
 
-	if err != nil {
-		log.Err(err).Msgf("Query error")
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		log.Err(err).Msgf("Transactions Query error")
 		return nil, 0, err
 	}
 
 	result := make([]*models.Tx, 0)
-	for rows.Next() {
-		var tx models.Tx
-		var authInfo models.AuthInfo
-		var authInfoFee models.AuthInfoFee
-		var authInfoTip models.Tip
-		var txResponse models.TxResponse
-		signatures := make([][]byte, 0)
-		extensionsOptions := make([]string, 0)
-		nonCriticalExtensionOptions := make([]string, 0)
+	if rows != nil {
+		for rows.Next() {
+			var tx models.Tx
+			var authInfo models.AuthInfo
+			var authInfoFee models.AuthInfoFee
+			var authInfoTip models.Tip
+			var txResponse models.TxResponse
+			signatures := make([][]byte, 0)
+			extensionsOptions := make([]string, 0)
+			nonCriticalExtensionOptions := make([]string, 0)
 
-		if err := rows.Scan(&tx.ID, &signatures, &tx.Hash, &tx.Code,
-			&tx.BlockID, &tx.Timestamp, &tx.Memo, &tx.TimeoutHeight,
-			&extensionsOptions, &nonCriticalExtensionOptions,
-			&tx.AuthInfoID, &tx.TxResponseID,
-			&authInfoFee.GasLimit, &authInfoFee.Payer,
-			&authInfoFee.Granter, &authInfoTip.Tipper,
-			&txResponse.Code, &txResponse.GasUsed,
-			&txResponse.GasWanted,
-			&txResponse.TimeStamp, &txResponse.Codespace,
-			&txResponse.Data, &txResponse.Info); err != nil {
-			log.Err(err).Msgf("rows.Scan error")
-			return nil, 0, err
+			if err := rows.Scan(&tx.ID, &signatures, &tx.Hash, &tx.Code,
+				&tx.BlockID, &tx.Timestamp, &tx.Memo, &tx.TimeoutHeight,
+				&extensionsOptions, &nonCriticalExtensionOptions,
+				&tx.AuthInfoID, &tx.TxResponseID,
+				&authInfoFee.GasLimit, &authInfoFee.Payer,
+				&authInfoFee.Granter, &authInfoTip.Tipper,
+				&txResponse.Code, &txResponse.GasUsed,
+				&txResponse.GasWanted,
+				&txResponse.TimeStamp, &txResponse.Codespace,
+				&txResponse.Data, &txResponse.Info); err != nil {
+				log.Err(err).Msgf("rows.Scan error")
+				return nil, 0, err
+			}
+			tx.Signatures = signatures
+			tx.ExtensionOptions = extensionsOptions
+			tx.NonCriticalExtensionOptions = nonCriticalExtensionOptions
+
+			var block *models.Block
+			if block, err = r.blockInfo(ctx, tx.BlockID); err != nil {
+				log.Err(err).Msgf("error in blockInfo")
+			}
+			if block != nil {
+				tx.Block = *block
+			}
+
+			var fees []models.Fee
+			if fees, err = r.feesByTransaction(ctx, tx.ID); err != nil {
+				log.Err(err).Msgf("error in feesByTransaction")
+			}
+			tx.Fees = fees
+
+			authInfo.Fee = authInfoFee
+			authInfo.Tip = authInfoTip
+			tx.AuthInfo = authInfo
+			tx.TxResponse = txResponse
+
+			res, err := r.GetSenderAndReceiver(context.Background(), tx.Hash)
+			if err == nil {
+				tx.SenderReceiver = res
+			}
+
+			result = append(result, &tx)
 		}
-		tx.Signatures = signatures
-		tx.ExtensionOptions = extensionsOptions
-		tx.NonCriticalExtensionOptions = nonCriticalExtensionOptions
-
-		var block *models.Block
-		if block, err = r.blockInfo(ctx, tx.BlockID); err != nil {
-			log.Err(err).Msgf("error in blockInfo")
-		}
-		if block != nil {
-			tx.Block = *block
-		}
-
-		var fees []models.Fee
-		if fees, err = r.feesByTransaction(ctx, tx.ID); err != nil {
-			log.Err(err).Msgf("error in feesByTransaction")
-		}
-		tx.Fees = fees
-
-		authInfo.Fee = authInfoFee
-		authInfo.Tip = authInfoTip
-		tx.AuthInfo = authInfo
-		tx.TxResponse = txResponse
-
-		res, err := r.GetSenderAndReceiver(context.Background(), tx.Hash)
-		if err == nil {
-			tx.SenderReceiver = res
-		}
-
-		result = append(result, &tx)
 	}
 
 	blockID := -1
 	if filter != nil && filter.TxBlockHeight != nil {
 		queryBlock := `select id from blocks where blocks.height = $1`
 		row := r.db.QueryRow(ctx, queryBlock, *filter.TxBlockHeight)
-		if err = row.Scan(&blockID); err != nil {
+		if err = row.Scan(&blockID); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			log.Err(err).Msgf("queryBlock error")
+			return nil, 0, err
 		}
 	}
 
@@ -397,7 +407,7 @@ func (r *txs) Transactions(ctx context.Context, limit int64, offset int64, filte
 	}
 
 	var allTx int64
-	if err = row.Scan(&allTx); err != nil {
+	if err = row.Scan(&allTx); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		log.Err(err).Msgf("queryAll error")
 		return nil, 0, err
 	}
@@ -568,8 +578,8 @@ func (r *txs) extractNumber(value string) (decimal.Decimal, string, error) {
 }
 
 func (r *txs) GetWalletsCount(ctx context.Context) (*model.TotalWallets, error) {
-	query := `select distinct
-			   count(message_event_attributes.value) as total
+	query := `select
+			   count(distinct message_event_attributes.value) as total
 			from txes
 					 left join messages on txes.id = messages.tx_id
 					 left join message_types on messages.message_type_id = message_types.id
@@ -577,25 +587,36 @@ func (r *txs) GetWalletsCount(ctx context.Context) (*model.TotalWallets, error) 
 					 left join message_event_types on message_events.message_event_type_id=message_event_types.id
 					 left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
 					 left join message_event_attribute_keys on message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
-			where message_event_attribute_keys.key = ANY($2)
-			and date(txes.timestamp) = date($1)`
-	types := []string{"sender"}
-	row := r.db.QueryRow(ctx, query, time.Now().UTC(), types)
+			where message_event_attribute_keys.key = ANY($2) `
+
+	queryPerDate := query + `and date(txes.timestamp) = date($1)`
+	types := []string{"sender", "receiver", "recipient"}
+	row := r.db.QueryRow(ctx, queryPerDate, time.Now().UTC(), types)
 	var count24H int64
 	if err := row.Scan(&count24H); err != nil {
 		log.Err(err).Msgf("GetWalletsCount: rows error")
 		count24H = 0
 	}
 
-	row = r.db.QueryRow(ctx, query, time.Now().UTC().Add(-24*time.Hour), types)
+	row = r.db.QueryRow(ctx, queryPerDate, time.Now().UTC().Add(-24*time.Hour), types)
 	var count48H int64
 	if err := row.Scan(&count48H); err != nil {
 		log.Err(err).Msgf("GetWalletsCount: rows error")
 		count48H = 0
 	}
 
-	queryAll := `select distinct
-		   count(message_event_attributes.value) as total
+	queryMoreDate := query + `and date(txes.timestamp) >= date($1)`
+	firstDay := time.Date(time.Now().UTC().Year(), time.Now().UTC().Month(), 1, 0, 0, 0, 0, time.Local)
+	row = r.db.QueryRow(ctx, queryMoreDate, firstDay, types)
+	var count30D int64
+	if err := row.Scan(&count30D); err != nil {
+		log.Err(err).Msgf("GetWalletsCount: rows error")
+		count30D = 0
+	}
+
+	// total wallets
+	queryAll := `select
+		   count(distinct message_event_attributes.value) as total
 		from txes
 				 left join messages on txes.id = messages.tx_id
 				 left join message_types on messages.message_type_id = message_types.id
@@ -604,27 +625,123 @@ func (r *txs) GetWalletsCount(ctx context.Context) (*model.TotalWallets, error) 
 				 left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
 				 left join message_event_attribute_keys on message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
 		where message_event_attribute_keys.key = ANY($1)`
-	types = append(types, "receiver", "recipient")
+
 	row = r.db.QueryRow(ctx, queryAll, types)
 	var countAll int64
 	if err := row.Scan(&countAll); err != nil {
 		return nil, err
 	}
 
-	return &model.TotalWallets{Total: countAll, Count24H: count24H, Count48H: count48H}, nil
+	return &model.TotalWallets{Total: countAll, Count24H: count24H, Count48H: count48H, Count30D: count30D}, nil
+}
+
+func (r *txs) GetWalletsCountPerPeriod(ctx context.Context, startDate, endDate time.Time) (int64, error) {
+	query := `select
+			   count(distinct message_event_attributes.value) as total
+			from txes
+					 left join messages on txes.id = messages.tx_id
+					 left join message_types on messages.message_type_id = message_types.id
+					 left join message_events on messages.id = message_events.message_id
+					 left join message_event_types on message_events.message_event_type_id=message_event_types.id
+					 left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
+					 left join message_event_attribute_keys on message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
+			where message_event_attribute_keys.key = ANY($3)
+			and date(txes.timestamp) BETWEEN date($1) and date($2)`
+	types := []string{"sender", "receiver", "recipient"}
+	row := r.db.QueryRow(ctx, query, startDate.UTC(), endDate.UTC(), types)
+	var count int64
+	if err := row.Scan(&count); err != nil {
+		log.Err(err).Msgf("GetWalletsCount: rows error")
+		return 0, err
+	}
+
+	return count, nil
+}
+
+func (r *txs) GetWalletsWithTx(ctx context.Context, limit int64, offset int64) ([]*model.WalletWithTxs, int64, error) {
+	query := `SELECT
+		subquery.value,
+		subquery.tx_count
+	FROM (
+			 SELECT
+				 message_event_attributes.value,
+				 COUNT(DISTINCT txes.hash) AS tx_count,
+				 txes.timestamp
+			 FROM txes
+					  LEFT JOIN messages ON txes.id = messages.tx_id
+					  LEFT JOIN message_types ON messages.message_type_id = message_types.id
+					  LEFT JOIN message_events ON messages.id = message_events.message_id
+					  LEFT JOIN message_event_types ON message_events.message_event_type_id = message_event_types.id
+					  LEFT JOIN message_event_attributes ON message_events.id = message_event_attributes.message_event_id
+					  LEFT JOIN message_event_attribute_keys ON message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
+			 WHERE message_event_attribute_keys.key = ANY($1)
+			 GROUP BY message_event_attributes.value, txes.timestamp
+		 ) subquery
+	ORDER BY subquery.timestamp DESC LIMIT $2 OFFSET $3`
+	types := []string{"sender"}
+
+	rows, err := r.db.Query(ctx, query, types, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	data := make([]*model.WalletWithTxs, 0)
+	for rows.Next() {
+		var item model.WalletWithTxs
+		if err = rows.Scan(&item.Account, &item.TxCount); err != nil {
+			return nil, 0, err
+		}
+		data = append(data, &item)
+	}
+
+	queryAll := `SELECT
+				 COUNT(message_event_attributes.value)
+			 FROM txes
+					  LEFT JOIN messages ON txes.id = messages.tx_id
+					  LEFT JOIN message_types ON messages.message_type_id = message_types.id
+					  LEFT JOIN message_events ON messages.id = message_events.message_id
+					  LEFT JOIN message_event_types ON message_events.message_event_type_id = message_event_types.id
+					  LEFT JOIN message_event_attributes ON message_events.id = message_event_attributes.message_event_id
+					  LEFT JOIN message_event_attribute_keys ON message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
+			 WHERE message_event_attribute_keys.key = ANY($1)`
+	var total int64
+	if err = r.db.QueryRow(ctx, queryAll, types).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	return data, total, nil
+}
+
+func (r *txs) TxCountByAccounts(ctx context.Context, accounts []string) ([]*model.WalletWithTxs, error) {
+	query := `SELECT account, count(distinct tx_hash) from transactions_normalized where account=ANY($1) GROUP BY account`
+	rows, err := r.db.Query(ctx, query, accounts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	data := make([]*model.WalletWithTxs, 0)
+	for rows.Next() {
+		var item model.WalletWithTxs
+		if err = rows.Scan(&item.Account, &item.TxCount); err != nil {
+			return nil, err
+		}
+		data = append(data, &item)
+	}
+
+	return data, nil
 }
 
 func (r *txs) GetVotes(ctx context.Context, accountAddress string) ([]*model.VotesTransaction, error) {
 	voterQuery := `select txes.id
 			from txes
-					left join blocks on txes.block_id = blocks.id
 					left join messages on txes.id = messages.tx_id
 					left join message_types on messages.message_type_id = message_types.id
 					left join message_events on messages.id = message_events.message_id
 					left join message_event_types on message_events.message_event_type_id=message_event_types.id
 					left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
 					left join message_event_attribute_keys on message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
-					where message_types.message_type in ('/cosmos.gov.v1beta1.MsgVote') and type = 'proposal_vote' and key='voter' and value = $1
+					where message_types.message_type IN ('/cosmos.gov.v1beta1.MsgVote', '/cosmos.authz.v1beta1.MsgExec') 
+					  and type = 'proposal_vote' and key='voter' and value = $1
 			order by txes.id, messages.message_index, message_events.index, message_event_attributes.index asc;`
 	rows, err := r.db.Query(ctx, voterQuery, accountAddress)
 	if err != nil {
@@ -648,7 +765,7 @@ from txes
          left join message_event_types on message_events.message_event_type_id=message_event_types.id
          left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
          left join message_event_attribute_keys on message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
-where message_types.message_type in ('/cosmos.gov.v1beta1.MsgVote') and type = 'proposal_vote' and txes.id = $1
+where message_types.message_type IN ('/cosmos.gov.v1beta1.MsgVote', '/cosmos.authz.v1beta1.MsgExec') and type = 'proposal_vote' and txes.id = $1
 order by txes.id, messages.message_index, message_events.index, message_event_attributes.index asc) as inn
 group by inn.id, inn.timestamp, inn.hash, inn.height`
 	data := make([]*model.VotesTransaction, 0)
@@ -765,8 +882,8 @@ func (r *txs) getTransactionsByTypes(ctx context.Context, accountAddress string,
 	return data, total, nil
 }
 
-func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, messageType string,
-	limit int64, offset int64) ([]*models.Tx, int64, error) {
+func (r *txs) transactionsByEventValuePrepare(values []string, messageType []string,
+	limit int64, offset int64) (string, []any) {
 	params := 4
 	placeholders := make([]string, len(values))
 	for i := range values {
@@ -774,28 +891,17 @@ func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, mes
 	}
 	inClause := strings.Join(placeholders, ", ")
 
-	query := fmt.Sprintf(`WITH filtered_txes AS (
-		  SELECT txes.id
-		  FROM txes
-		  LEFT JOIN messages ON txes.id = messages.tx_id
-		  left join message_types on messages.message_type_id = message_types.id
-		  left join message_events on messages.id = message_events.message_id
-		  left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
-		  WHERE message_event_attributes.value IN (%s)
-		  GROUP BY txes.id
-		  HAVING COUNT(DISTINCT message_event_attributes.value) = $2::integer
-		)
+	query := fmt.Sprintf(`
 		SELECT DISTINCT txes.hash, txes.timestamp
 		FROM txes
-		LEFT JOIN blocks ON txes.block_id = blocks.id
 		LEFT JOIN messages ON txes.id = messages.tx_id
 		LEFT JOIN message_types ON messages.message_type_id = message_types.id
 		LEFT JOIN message_events ON messages.id = message_events.message_id
-		LEFT JOIN message_event_types ON message_events.message_event_type_id = message_event_types.id
 		LEFT JOIN message_event_attributes ON message_events.id = message_event_attributes.message_event_id
-		LEFT JOIN message_event_attribute_keys ON message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
-		WHERE message_types.message_type = $1
-		AND txes.id IN (SELECT id FROM filtered_txes)
+		WHERE message_types.message_type = ANY($1)
+		AND message_event_attributes.value IN (%s)
+		GROUP BY txes.id, txes.hash, txes.timestamp
+		HAVING COUNT(DISTINCT message_event_attributes.value) = $2::integer
 		ORDER BY txes.timestamp DESC
 		LIMIT $3::integer OFFSET $4::integer;`, inClause)
 
@@ -808,8 +914,15 @@ func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, mes
 		args[i+params] = v
 	}
 
+	return query, args
+}
+
+func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, messageType []string, includeEvents bool,
+	limit int64, offset int64) ([]*models.Tx, int64, error) {
+	query, args := r.transactionsByEventValuePrepare(values, messageType, limit, offset)
+
 	rows, err := r.db.Query(ctx, query, args...)
-	if err != nil {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, 0, err
 	}
 	defer rows.Close()
@@ -819,53 +932,45 @@ func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, mes
 		var txHash string
 		var txTime time.Time
 		if err = rows.Scan(&txHash, &txTime); err != nil {
-			return nil, 0, err
+			log.Err(err).Msgf("error scanning row")
+			continue
 		}
-		txByHash, _, err := r.Transactions(ctx, 100, 0, &TxsFilter{TxHash: &txHash})
-		if err != nil {
+
+		txByHash, _, err := r.Transactions(ctx, 1, 0, &TxsFilter{TxHash: &txHash})
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return nil, 0, err
 		}
 
-		for _, tx := range txByHash {
-			events, err := r.getEvents(ctx, tx.ID)
-			if err != nil {
-				return nil, 0, err
+		if includeEvents {
+			for _, tx := range txByHash {
+				events, err := r.GetEvents(ctx, tx.ID)
+				if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+					return nil, 0, err
+				}
+				tx.Events = events
 			}
-			tx.Events = events
 		}
 		data = append(data, txByHash...)
 	}
 
 	// calculating total count
-	params = 2
-	placeholders = make([]string, len(values))
+	params := 2
+	placeholders := make([]string, len(values))
 	for i := range values {
 		placeholders[i] = fmt.Sprintf("$%d", i+params+1)
 	}
-	inClause = strings.Join(placeholders, ", ")
+	inClause := strings.Join(placeholders, ", ")
 
-	queryAll := fmt.Sprintf(`WITH filtered_txes AS (
-			  SELECT txes.id
-			  FROM txes
-			  LEFT JOIN messages ON txes.id = messages.tx_id
-              left join message_types on messages.message_type_id = message_types.id
-              left join message_events on messages.id = message_events.message_id
-              left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
-			  WHERE message_event_attributes.value IN (%s)
-			  GROUP BY txes.id
-			  HAVING COUNT(DISTINCT message_event_attributes.value) = $2::integer
-			)
-			SELECT COUNT(DISTINCT txes.hash)
-			FROM txes
-			LEFT JOIN blocks ON txes.block_id = blocks.id
-			LEFT JOIN messages ON txes.id = messages.tx_id
-			LEFT JOIN message_types ON messages.message_type_id = message_types.id
-			LEFT JOIN message_events ON messages.id = message_events.message_id
-			LEFT JOIN message_event_types ON message_events.message_event_type_id = message_event_types.id
-			LEFT JOIN message_event_attributes ON message_events.id = message_event_attributes.message_event_id
-			LEFT JOIN message_event_attribute_keys ON message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
-			WHERE message_types.message_type = $1
-			  AND txes.id IN (SELECT id FROM filtered_txes)`, inClause)
+	queryAll := fmt.Sprintf(`SELECT COUNT(DISTINCT txes.hash)
+		FROM txes
+		LEFT JOIN messages ON txes.id = messages.tx_id
+		LEFT JOIN message_types ON messages.message_type_id = message_types.id
+		LEFT JOIN message_events ON messages.id = message_events.message_id
+		LEFT JOIN message_event_attributes ON message_events.id = message_event_attributes.message_event_id
+		WHERE message_types.message_type = ANY($1)
+		AND message_event_attributes.value IN (%s)
+		HAVING COUNT(DISTINCT message_event_attributes.value) = $2::integer`, inClause)
+
 	args = make([]interface{}, len(values)+params)
 	args[0] = messageType
 	args[1] = len(values)
@@ -874,14 +979,14 @@ func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, mes
 	}
 
 	var total int64
-	if err = r.db.QueryRow(ctx, queryAll, args...).Scan(&total); err != nil {
+	if err = r.db.QueryRow(ctx, queryAll, args...).Scan(&total); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, 0, err
 	}
 
 	return data, total, nil
 }
 
-func (r *txs) getEvents(ctx context.Context, txID uint) ([]*model.TxEvents, error) {
+func (r *txs) GetEvents(ctx context.Context, txID uint) ([]*model.TxEvents, error) {
 	query := `select
        message_types.message_type,
        message_events.index,
@@ -917,11 +1022,23 @@ order by messages.message_index, message_events.index, message_event_attributes.
 
 func (r *txs) GetVotesByAccounts(ctx context.Context, accounts []string, excludeAccounts bool, voteType string,
 	proposalID int, limit int64, offset int64) ([]*models.Tx, int64, error) {
-	transactions, _, err := r.TransactionsByEventValue(ctx,
+	queryTxs, paramsTxs := r.transactionsByEventValuePrepare(
 		[]string{voteType, strconv.Itoa(proposalID)},
-		"/cosmos.gov.v1beta1.MsgVote", 100000, 0)
+		[]string{"/cosmos.gov.v1beta1.MsgVote", "/cosmos.authz.v1beta1.MsgExec"}, 100000, 0)
+	rows, err := r.db.Query(ctx, queryTxs, paramsTxs...)
 	if err != nil {
 		return nil, 0, err
+	}
+	defer rows.Close()
+
+	txsFilter := make([]string, 0)
+	for rows.Next() {
+		var txHash string
+		var txTime time.Time
+		if err = rows.Scan(&txHash, &txTime); err != nil {
+			return nil, 0, err
+		}
+		txsFilter = append(txsFilter, txHash)
 	}
 
 	exclude := ""
@@ -930,29 +1047,21 @@ func (r *txs) GetVotesByAccounts(ctx context.Context, accounts []string, exclude
 	}
 
 	query := fmt.Sprintf(`
-	WITH relevant_txes AS (
-		SELECT txes.hash, txes.timestamp
+		SELECT DISTINCT txes.hash, txes.timestamp
 		FROM txes
 		LEFT JOIN messages ON txes.id = messages.tx_id
 		LEFT JOIN message_types ON messages.message_type_id = message_types.id
 		LEFT JOIN message_events ON messages.id = message_events.message_id
 		LEFT JOIN message_event_attributes ON message_events.id = message_event_attributes.message_event_id
 		LEFT JOIN message_event_attribute_keys ON message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
-		WHERE message_types.message_type = '/cosmos.gov.v1beta1.MsgVote'
+		WHERE message_types.message_type IN ('/cosmos.gov.v1beta1.MsgVote', '/cosmos.authz.v1beta1.MsgExec')
 		  AND message_event_attribute_keys.key = 'voter'
 		  AND %s message_event_attributes.value = ANY($1)
 		  AND txes.hash = ANY($2)
-	)
-	SELECT DISTINCT hash, timestamp
-	FROM relevant_txes
-	ORDER BY timestamp DESC
-	LIMIT $3::integer OFFSET $4::integer`, exclude)
+		ORDER BY txes.timestamp DESC
+		LIMIT $3::integer OFFSET $4::integer;`, exclude)
 
-	txsFilter := make([]string, 0)
-	for _, tx := range transactions {
-		txsFilter = append(txsFilter, tx.Hash)
-	}
-	rows, err := r.db.Query(ctx, query, accounts, txsFilter, limit, offset)
+	rows, err = r.db.Query(ctx, query, accounts, txsFilter, limit, offset)
 	if err != nil {
 		log.Err(err).Msgf("failed to fetch votes for accounts: %v", accounts)
 		return nil, 0, err
@@ -973,7 +1082,7 @@ func (r *txs) GetVotesByAccounts(ctx context.Context, accounts []string, exclude
 		}
 
 		for _, tx := range txByHash {
-			events, err := r.getEvents(ctx, tx.ID)
+			events, err := r.GetEvents(ctx, tx.ID)
 			if err != nil {
 				return nil, 0, err
 			}
@@ -984,20 +1093,17 @@ func (r *txs) GetVotesByAccounts(ctx context.Context, accounts []string, exclude
 
 	// calculating total
 	queryAll := fmt.Sprintf(`
-		WITH filtered_txes AS (
-			SELECT DISTINCT txes.hash
-			FROM txes
-			LEFT JOIN messages ON txes.id = messages.tx_id
-			LEFT JOIN message_types ON messages.message_type_id = message_types.id
-			LEFT JOIN message_event_attributes ON messages.id = message_event_attributes.message_event_id
-			LEFT JOIN message_event_attribute_keys ON message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
-			WHERE message_types.message_type = '/cosmos.gov.v1beta1.MsgVote'
-			  AND %s message_event_attributes.value = ANY($1)
-			  AND message_event_attribute_keys.key = 'voter'
-			  AND txes.hash = ANY($2)
-		)
-		SELECT COUNT(*)
-		FROM filtered_txes`, exclude)
+		SELECT COUNT(DISTINCT txes.hash)
+		FROM txes
+		LEFT JOIN messages ON txes.id = messages.tx_id
+		LEFT JOIN message_types ON messages.message_type_id = message_types.id
+		LEFT JOIN message_events ON messages.id = message_events.message_id
+		LEFT JOIN message_event_attributes ON message_events.id = message_event_attributes.message_event_id
+		LEFT JOIN message_event_attribute_keys ON message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
+		WHERE message_types.message_type IN ('/cosmos.gov.v1beta1.MsgVote', '/cosmos.authz.v1beta1.MsgExec')
+		  AND message_event_attribute_keys.key = 'voter'
+		  AND %s message_event_attributes.value = ANY($1)
+		  AND txes.hash = ANY($2);`, exclude)
 	var all int64
 	row := r.db.QueryRow(ctx, queryAll, accounts, txsFilter)
 	if err = row.Scan(&all); err != nil {
@@ -1005,4 +1111,37 @@ func (r *txs) GetVotesByAccounts(ctx context.Context, accounts []string, exclude
 	}
 
 	return data, all, nil
+}
+
+func (r *txs) UpdateViews(ctx context.Context) error {
+	_, err := r.db.Exec(ctx, `REFRESH MATERIALIZED VIEW CONCURRENTLY transactions_normalized WITH DATA;`)
+	return err
+}
+
+func (r *txs) AccountInfo(ctx context.Context, account string) (*model.AccountInfo, error) {
+	query := `SELECT
+    COUNT(DISTINCT txs.tx_hash) as tx_count,
+    MIN(txs.time) as first_tx,
+    SUM(CASE WHEN CAST(txs.tx_type AS TEXT)='sender' THEN  CAST(txs.amount AS BIGINT) ELSE 0 END) as total_spent,
+    SUM(CASE WHEN CAST(txs.tx_type AS TEXT)='receiver' THEN CAST(txs.amount AS BIGINT) ELSE 0 END) as total_received,
+    txs.denom
+from transactions_normalized txs where account = $1
+group by txs.denom;`
+	var acc model.AccountInfo
+	var totalReceived model.DecCoin
+	var totalSpent model.DecCoin
+	var denom string
+
+	err := r.db.QueryRow(ctx, query, account).Scan(&acc.TotalTransactions,
+		&acc.FirstTransactionDate, &totalSpent.Amount, &totalReceived.Amount, &denom)
+	if err != nil {
+		log.Err(err).Msgf("failed to fetch votes for account: %v", account)
+		return nil, err
+	}
+	totalReceived.Denom = denom
+	totalSpent.Denom = denom
+	acc.TotalSpent = totalSpent
+	acc.TotalReceived = totalReceived
+
+	return &acc, nil
 }

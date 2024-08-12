@@ -33,6 +33,10 @@ service BlocksService {
   rpc GetValidatorHistoryEvents(GetValidatorHistoryEventsRequest) returns (GetValidatorHistoryEventsResponse) {}
   rpc TransactionsByEventValue(TransactionsByEventValueRequest) returns (TransactionsByEventValueResponse) {}
   rpc GetVotesByAccounts(GetVotesByAccountsRequest) returns (GetVotesByAccountsResponse) {}
+  rpc GetWalletsCountPerPeriod(GetWalletsCountPerPeriodRequest) returns (GetWalletsCountPerPeriodResponse) {}
+  rpc GetWalletsWithTx(GetWalletsWithTxRequest) returns (GetWalletsWithTxResponse) {}
+  rpc TxCountByAccounts(TxCountByAccountsRequest) returns (TxCountByAccountsResponse) {}
+  rpc AccountInfo(AccountInfoRequest) returns (AccountInfoResponse) {}
 }
 
 
@@ -289,6 +293,7 @@ message TotalWallets {
   int64 total = 1;
   int64 count_24H = 2;
   int64 count_48H = 3;
+  int64 count_30D = 4;
 }
 
 message SearchResults {
@@ -407,7 +412,7 @@ message GetValidatorHistoryEventsResponse{
 
 message TransactionsByEventValueRequest{
   repeated string values = 1;
-  string type = 2;
+  repeated string type = 2;
   Limit limit = 3;
 }
 
@@ -427,4 +432,46 @@ message GetVotesByAccountsRequest{
 message GetVotesByAccountsResponse{
   repeated TxByHash data = 1;
   Result result = 2;
+}
+
+message GetWalletsCountPerPeriodRequest{
+  google.protobuf.Timestamp start = 1;
+  google.protobuf.Timestamp end = 2;
+}
+
+message GetWalletsCountPerPeriodResponse{
+  int64 result = 1;
+}
+
+message GetWalletsWithTxRequest{
+  Limit limit = 1;
+}
+
+message GetWalletsWithTxResponse{
+  repeated WalletWithTxs data = 1;
+  Result result = 2;
+}
+
+message WalletWithTxs{
+  string account = 1;
+  int64 tx_count = 2;
+}
+
+message TxCountByAccountsRequest{
+  repeated string accounts = 1;
+}
+
+message TxCountByAccountsResponse{
+  repeated WalletWithTxs data = 1;
+}
+
+message AccountInfoRequest{
+  string account = 1;
+}
+
+message AccountInfoResponse{
+  int64 tx_count = 1;
+  google.protobuf.Timestamp first_tx_time = 2;
+  Denom total_spent = 3;
+  Denom total_received = 4;
 }

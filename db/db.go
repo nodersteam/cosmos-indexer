@@ -68,16 +68,20 @@ func MigrateModels(db *gorm.DB) error {
 		return err
 	}
 
+	if err := migrateTables(db); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func migrateIndexes(db *gorm.DB) error {
-	err := db.Raw(`create index if not exists idx_height_desc on blocks (height desc);`).Error
+	err := db.Exec(`create index if not exists idx_height_desc on blocks (height desc);`).Error
 	if err != nil {
 		return err
 	}
 
-	err = db.Raw(`create index if not exists idx_block_id on txes (block_id);
+	err = db.Exec(`create index if not exists idx_block_id on txes (block_id);
 						create index if not exists idx_auth_info_id on txes (auth_info_id);
 						create index if not exists idx_tx_response_id on txes (tx_response_id);
 						create index if not exists idx_fee_id on tx_auth_info (fee_id);
@@ -87,7 +91,7 @@ func migrateIndexes(db *gorm.DB) error {
 		return err
 	}
 
-	err = db.Raw(`create index if not exists idx_tx_complex on txes (id, signatures,
+	err = db.Exec(`create index if not exists idx_tx_complex on txes (id, signatures,
                                                    hash, code, block_id,
                                                    timestamp, memo, timeout_height,
                                                    extension_options,non_critical_extension_options,
@@ -96,12 +100,12 @@ func migrateIndexes(db *gorm.DB) error {
 		return err
 	}
 
-	err = db.Raw(`create index if not exists idx_tx_responses_complex on tx_responses(code, gas_used, gas_wanted, time_stamp, codespace, data, info);`).Error
+	err = db.Exec(`create index if not exists idx_tx_responses_complex on tx_responses(code, gas_used, gas_wanted, time_stamp, codespace, data, info);`).Error
 	if err != nil {
 		return err
 	}
 
-	err = db.Raw(`CREATE INDEX if not exists idx_txes_id ON txes(id);
+	err = db.Exec(`CREATE INDEX if not exists idx_txes_id ON txes(id);
 		CREATE INDEX if not exists idx_messages_tx_id ON messages(tx_id);
 		CREATE INDEX if not exists idx_message_types_id ON message_types(id);
 		CREATE INDEX if not exists idx_message_events_message_id ON message_events(message_id);
@@ -119,6 +123,43 @@ func migrateIndexes(db *gorm.DB) error {
 		return err
 	}
 
+	return nil
+}
+
+func migrateTables(db *gorm.DB) error {
+	query := `CREATE MATERIALIZED VIEW IF NOT EXISTS transactions_normalized AS
+SELECT
+    message_event_attributes.value as account,
+    txes.hash as tx_hash,
+    txes.timestamp as time,
+    blocks.height as height,
+    MAX(CASE WHEN amount_key.key = 'amount' THEN amount.value END) AS amount_value,
+    REGEXP_REPLACE(MAX(CASE WHEN amount_key.key = 'amount' THEN amount.value END), '[^0-9]', '', 'g') AS amount,
+    REGEXP_REPLACE(MAX(CASE WHEN amount_key.key = 'amount' THEN amount.value END), '[0-9]', '', 'g') AS denom,
+    message_types.message_type as msg_type,
+	message_event_attribute_keys.key as tx_type
+FROM txes
+         LEFT JOIN messages ON txes.id = messages.tx_id
+         LEFT JOIN blocks ON txes.block_id = blocks.id
+         LEFT JOIN message_types ON messages.message_type_id = message_types.id
+         LEFT JOIN message_events ON messages.id = message_events.message_id
+         LEFT JOIN message_event_types ON message_events.message_event_type_id = message_event_types.id
+         LEFT JOIN message_event_attributes ON message_events.id = message_event_attributes.message_event_id
+         LEFT JOIN message_event_attribute_keys ON message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
+         LEFT JOIN message_event_attributes amount ON message_events.id = amount.message_event_id
+         LEFT JOIN message_event_attribute_keys amount_key ON amount.message_event_attribute_key_id = amount_key.id
+WHERE message_event_attribute_keys.key IN ('sender','receiver') and message_types.message_type='/cosmos.bank.v1beta1.MsgSend'
+GROUP BY message_event_attributes.value, txes.hash, txes.timestamp, txes.id, blocks.height, message_types.message_type, message_event_attribute_keys.key;
+
+CREATE INDEX IF NOT EXISTS idx_transactions_normalized_account
+    ON transactions_normalized (account);
+CREATE INDEX IF NOT EXISTS idx_account_tx_hash 
+	ON transactions_normalized(account, tx_hash);
+`
+	err := db.Exec(query).Error
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -222,7 +263,9 @@ func GetDBChainID(db *gorm.DB, chain models.Chain) (uint, error) {
 func GetHighestIndexedBlock(db *gorm.DB, chainID uint) models.Block {
 	var block models.Block
 	// this can potentially be optimized by getting max first and selecting it (this gets translated into a select * limit 1)
-	db.Table("blocks").Where("chain_id = ?::int AND tx_indexed = true AND time_stamp != '0001-01-01T00:00:00.000Z'", chainID).Order("height desc").First(&block)
+	db.Table("blocks").
+		Where("chain_id = ?::int AND tx_indexed = true AND time_stamp != '0001-01-01T00:00:00.000Z'", chainID).
+		Order("height desc").First(&block)
 	return block
 }
 
@@ -234,6 +277,8 @@ func GetBlocksFromStart(db *gorm.DB, chainID uint, startHeight int64, endHeight 
 	if endHeight != -1 {
 		initialWhere = initialWhere.Where("height <= ?", endHeight)
 	}
+
+	initialWhere = db.Order("height desc").Limit(1)
 
 	if err := initialWhere.Find(&blocks).Error; err != nil {
 		return nil, err
@@ -319,13 +364,33 @@ func IndexNewBlock(db *gorm.DB, block models.Block, txs []TxDBWrapper, indexerCo
 		block.ProposerConsAddressID = consAddress.ID
 		block.ProposerConsAddress = consAddress
 		block.TxIndexed = true
+
+		signaturesCopy := make([]models.BlockSignature, len(block.Signatures))
+		copy(signaturesCopy, block.Signatures)
+		block.Signatures = make([]models.BlockSignature, 0)
+
 		if err := dbTransaction.
 			Where(models.Block{Height: block.Height, ChainID: block.ChainID}).
 			Assign(models.Block{TxIndexed: true, TimeStamp: block.TimeStamp}).
 			FirstOrCreate(&block).Error; err != nil {
-			config.Log.Error("Error getting/creating block DB object.", err)
+			config.Log.Error("Error getting/creating block DB object in events", err)
 			return err
 		}
+
+		// saving signatures
+		for ind, _ := range signaturesCopy {
+			signaturesCopy[ind].BlockID = uint64(block.ID)
+		}
+		err := dbTransaction.Clauses(
+			clause.OnConflict{
+				Columns:   []clause.Column{{Name: "block_id"}, {Name: "validator_address"}},
+				UpdateAll: true,
+			}).Create(signaturesCopy).Error
+		if err != nil {
+			config.Log.Error("Error creating block signatures in events.", err)
+			return err
+		}
+		block.Signatures = signaturesCopy
 
 		// pull txes and insert them
 		uniqueTxes := make(map[string]models.Tx)
@@ -382,6 +447,7 @@ func IndexNewBlock(db *gorm.DB, block models.Block, txs []TxDBWrapper, indexerCo
 		}
 
 		var txesSlice []models.Tx
+		config.Log.Infof("Unique Txs size %d for block %d", len(uniqueTxes), block.Height)
 		for _, tx := range uniqueTxes {
 
 			// create auth_info address if it doesn't exist
@@ -469,6 +535,7 @@ func IndexNewBlock(db *gorm.DB, block models.Block, txs []TxDBWrapper, indexerCo
 		}
 
 		if len(txesSlice) != 0 {
+			config.Log.Infof("TxesSlice size %d for block %d", len(txesSlice), block.Height)
 			if err := dbTransaction.Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "hash"}},
 				DoUpdates: clause.AssignmentColumns([]string{"code", "block_id"}),
