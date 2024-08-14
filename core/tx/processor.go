@@ -12,6 +12,7 @@ import (
 	"github.com/nodersteam/cosmos-indexer/db/models"
 	"github.com/nodersteam/cosmos-indexer/util"
 	"github.com/nodersteam/probe/client"
+	"github.com/rs/zerolog/log"
 	"math/big"
 	"time"
 )
@@ -202,6 +203,11 @@ func (a *processor) ProcessMessage(messageIndex int, message types.Msg,
 	currMessageType.MessageType = types.MsgTypeURL(message)
 	currMessage.MessageType = currMessageType
 	currMessageDBWrapper.Message = currMessage
+
+	if messageLog == nil {
+		log.Error().Msgf("ProcessMessage: messageLog error for tx %s, ignoring", currMessage.Tx.Hash)
+		return currMessageType.MessageType, currMessageDBWrapper
+	}
 
 	for eventIndex, event := range messageLog.Events {
 		uniqueEventTypes[event.Type] = models.MessageEventType{Type: event.Type}
