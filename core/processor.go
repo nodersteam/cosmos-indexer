@@ -45,10 +45,14 @@ func ProcessBlock(blockData *ctypes.ResultBlock, blockResultsData *ctypes.Result
 
 	signatures := make([]models.BlockSignature, 0)
 	for _, bl := range blockData.Block.LastCommit.Signatures {
+		if len(bl.ValidatorAddress.Bytes()) == 0 {
+			log.Warn().Msgf("validator address is empty, ignoring %d", blockData.Block.Height)
+			continue
+		}
 		address, err := sdkTypes.ConsAddressFromHex(
 			hex.EncodeToString(bl.ValidatorAddress.Bytes()))
 		if err != nil {
-			log.Err(err).Msgf("Error parsing validator address")
+			log.Err(err).Msgf("Error parsing validator address %s", bl.ValidatorAddress.String())
 			continue
 		}
 

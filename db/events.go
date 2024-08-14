@@ -6,9 +6,11 @@ import (
 	"github.com/nodersteam/cosmos-indexer/db/models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"strings"
+	"unicode/utf8"
 )
 
-func IndexBlockEvents(db *gorm.DB, dryRun bool, blockDBWrapper *BlockDBWrapper, identifierLoggingString string) (*BlockDBWrapper, error) {
+func IndexBlockEvents(db *gorm.DB, blockDBWrapper *BlockDBWrapper) (*BlockDBWrapper, error) {
 	err := db.Transaction(func(dbTransaction *gorm.DB) error {
 		if err := dbTransaction.
 			Exec("DELETE FROM failed_event_blocks WHERE height = ? AND blockchain_id = ?", blockDBWrapper.Block.Height, blockDBWrapper.Block.ChainID).
@@ -62,7 +64,7 @@ func IndexBlockEvents(db *gorm.DB, dryRun bool, blockDBWrapper *BlockDBWrapper, 
 				clause.OnConflict{
 					Columns:   []clause.Column{{Name: "block_id"}, {Name: "validator_address"}},
 					UpdateAll: true,
-				}).Create(signaturesCopy).Error
+				}).CreateInBatches(signaturesCopy, 1000).Error
 			if err != nil {
 				config.Log.Error("Error creating block signatures.", err)
 				return err
@@ -87,7 +89,7 @@ func IndexBlockEvents(db *gorm.DB, dryRun bool, blockDBWrapper *BlockDBWrapper, 
 				Columns:   []clause.Column{{Name: "type"}},
 				DoUpdates: clause.AssignmentColumns([]string{"type"}),
 			},
-		).Create(&uniqueBlockEventTypes).Error; err != nil {
+		).CreateInBatches(&uniqueBlockEventTypes, 1000).Error; err != nil {
 			config.Log.Error("Error creating begin block event types.", err)
 			return err
 		}
@@ -112,7 +114,7 @@ func IndexBlockEvents(db *gorm.DB, dryRun bool, blockDBWrapper *BlockDBWrapper, 
 				Columns:   []clause.Column{{Name: "key"}},
 				DoUpdates: clause.AssignmentColumns([]string{"key"}),
 			},
-		).Create(&uniqueBlockEventAttributeKeys).Error; err != nil {
+		).CreateInBatches(&uniqueBlockEventAttributeKeys, 1000).Error; err != nil {
 			config.Log.Error("Error creating begin block event attribute keys.", err)
 			return err
 		}
@@ -154,17 +156,19 @@ func IndexBlockEvents(db *gorm.DB, dryRun bool, blockDBWrapper *BlockDBWrapper, 
 					// Force update of block event type ID
 					DoUpdates: clause.AssignmentColumns([]string{"block_event_type_id"}),
 				},
-			).Create(&allBlockEvents).Error; err != nil {
+			).CreateInBatches(&allBlockEvents, 1000).Error; err != nil {
 				config.Log.Error("Error creating begin block events.", err)
 				return err
 			}
-
 			var allAttributes []*models.BlockEventAttribute
 			for index := range blockDBWrapper.BeginBlockEvents {
 				currAttributes := blockDBWrapper.BeginBlockEvents[index].Attributes
 				for attrIndex := range currAttributes {
 					currAttributes[attrIndex].BlockEventID = blockDBWrapper.BeginBlockEvents[index].BlockEvent.ID
 					currAttributes[attrIndex].BlockEvent = blockDBWrapper.BeginBlockEvents[index].BlockEvent
+					if !utf8.ValidString(currAttributes[attrIndex].Value) || strings.Contains(currAttributes[attrIndex].Value, "\x00") {
+						currAttributes[attrIndex].Value = "-"
+					}
 					currAttributes[attrIndex].BlockEventAttributeKey = blockDBWrapper.UniqueBlockEventAttributeKeys[currAttributes[attrIndex].BlockEventAttributeKey.Key]
 				}
 				for ii := range currAttributes {
@@ -177,7 +181,11 @@ func IndexBlockEvents(db *gorm.DB, dryRun bool, blockDBWrapper *BlockDBWrapper, 
 				for attrIndex := range currAttributes {
 					currAttributes[attrIndex].BlockEventID = blockDBWrapper.EndBlockEvents[index].BlockEvent.ID
 					currAttributes[attrIndex].BlockEvent = blockDBWrapper.EndBlockEvents[index].BlockEvent
-					currAttributes[attrIndex].BlockEventAttributeKey = blockDBWrapper.UniqueBlockEventAttributeKeys[currAttributes[attrIndex].BlockEventAttributeKey.Key]
+					if !utf8.ValidString(currAttributes[attrIndex].Value) || strings.Contains(currAttributes[attrIndex].Value, "\x00") {
+						currAttributes[attrIndex].Value = "-"
+					}
+					currAttributes[attrIndex].BlockEventAttributeKey =
+						blockDBWrapper.UniqueBlockEventAttributeKeys[currAttributes[attrIndex].BlockEventAttributeKey.Key]
 				}
 				for ii := range currAttributes {
 					allAttributes = append(allAttributes, &currAttributes[ii])
@@ -189,11 +197,12 @@ func IndexBlockEvents(db *gorm.DB, dryRun bool, blockDBWrapper *BlockDBWrapper, 
 					Columns: []clause.Column{{Name: "block_event_id"}, {Name: "index"}},
 					// Force update of value
 					DoUpdates: clause.AssignmentColumns([]string{"value"}),
-				}).Create(&allAttributes).Error; err != nil {
-					config.Log.Error("Error creating begin block event attributes.", err)
+				}).CreateInBatches(&allAttributes, 1000).Error; err != nil {
+					config.Log.Error("Error creating begin block event attributes. continue", err)
 					return err
 				}
 			}
+
 		}
 
 		return nil

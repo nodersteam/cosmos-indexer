@@ -29,7 +29,7 @@ import (
 	blocks "github.com/nodersteam/cosmos-indexer/proto"
 	"google.golang.org/grpc"
 
-	"github.com/DefiantLabs/probe/client"
+	"github.com/nodersteam/probe/client"
 
 	"github.com/nodersteam/cosmos-indexer/config"
 	"github.com/nodersteam/cosmos-indexer/core"
@@ -142,10 +142,6 @@ func customBlockEventRegistration(registry map[string][]parsers.BlockEventParser
 		BlockLifecyclePosition: lifecycleValue,
 	}
 	return registry, tracker, nil
-}
-
-func RegisterCustomModels(models []any) {
-	indexer.customModels = models
 }
 
 func setupIndex(cmd *cobra.Command, args []string) error {
@@ -862,7 +858,7 @@ func (idxr *Indexer) doDBUpdates(wg *sync.WaitGroup,
 			config.Log.Info(fmt.Sprintf("Indexing %v Block Events from block %d", numEvents, eventData.blockDBWrapper.Block.Height))
 			identifierLoggingString := fmt.Sprintf("block %d", eventData.blockDBWrapper.Block.Height)
 
-			indexedDataset, err := dbTypes.IndexBlockEvents(idxr.db, idxr.dryRun, eventData.blockDBWrapper, identifierLoggingString)
+			indexedDataset, err := dbTypes.IndexBlockEvents(idxr.db, eventData.blockDBWrapper)
 			if err != nil {
 				config.Log.Fatal(fmt.Sprintf("Error indexing block events for %s.", identifierLoggingString), err)
 			}

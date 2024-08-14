@@ -561,17 +561,17 @@ func (r *txs) GetSenderAndReceiver(ctx context.Context, hash string) (*model.TxS
 func (r *txs) extractNumber(value string) (decimal.Decimal, string, error) {
 	pattern := regexp.MustCompile(`(\d+)`)
 	numberStrings := pattern.FindAllStringSubmatch(value, -1)
-	numbers := make([]int, len(numberStrings))
+	numbers := make([]int64, len(numberStrings))
 	for i, numberString := range numberStrings {
-		number, err := strconv.Atoi(numberString[1])
+		number, err := decimal.NewFromString(numberString[1])
 		if err != nil {
 			return decimal.Zero, "", err
 		}
-		numbers[i] = number
+		numbers[i] = number.CoefficientInt64()
 	}
 	if len(numbers) > 0 {
-		denom := strings.ReplaceAll(value, strconv.Itoa(numbers[0]), "")
-		return decimal.NewFromInt(int64(numbers[0])), denom, nil
+		denom := strings.ReplaceAll(value, strconv.Itoa(int(numbers[0])), "")
+		return decimal.NewFromInt(numbers[0]), denom, nil
 	}
 
 	return decimal.Zero, "", fmt.Errorf("not found")
