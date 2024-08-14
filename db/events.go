@@ -64,7 +64,7 @@ func IndexBlockEvents(db *gorm.DB, blockDBWrapper *BlockDBWrapper) (*BlockDBWrap
 				clause.OnConflict{
 					Columns:   []clause.Column{{Name: "block_id"}, {Name: "validator_address"}},
 					UpdateAll: true,
-				}).Create(signaturesCopy).Error
+				}).CreateInBatches(signaturesCopy, 1000).Error
 			if err != nil {
 				config.Log.Error("Error creating block signatures.", err)
 				return err
@@ -89,7 +89,7 @@ func IndexBlockEvents(db *gorm.DB, blockDBWrapper *BlockDBWrapper) (*BlockDBWrap
 				Columns:   []clause.Column{{Name: "type"}},
 				DoUpdates: clause.AssignmentColumns([]string{"type"}),
 			},
-		).Create(&uniqueBlockEventTypes).Error; err != nil {
+		).CreateInBatches(&uniqueBlockEventTypes, 1000).Error; err != nil {
 			config.Log.Error("Error creating begin block event types.", err)
 			return err
 		}
@@ -114,7 +114,7 @@ func IndexBlockEvents(db *gorm.DB, blockDBWrapper *BlockDBWrapper) (*BlockDBWrap
 				Columns:   []clause.Column{{Name: "key"}},
 				DoUpdates: clause.AssignmentColumns([]string{"key"}),
 			},
-		).Create(&uniqueBlockEventAttributeKeys).Error; err != nil {
+		).CreateInBatches(&uniqueBlockEventAttributeKeys, 1000).Error; err != nil {
 			config.Log.Error("Error creating begin block event attribute keys.", err)
 			return err
 		}
@@ -156,7 +156,7 @@ func IndexBlockEvents(db *gorm.DB, blockDBWrapper *BlockDBWrapper) (*BlockDBWrap
 					// Force update of block event type ID
 					DoUpdates: clause.AssignmentColumns([]string{"block_event_type_id"}),
 				},
-			).Create(&allBlockEvents).Error; err != nil {
+			).CreateInBatches(&allBlockEvents, 1000).Error; err != nil {
 				config.Log.Error("Error creating begin block events.", err)
 				return err
 			}
@@ -197,7 +197,7 @@ func IndexBlockEvents(db *gorm.DB, blockDBWrapper *BlockDBWrapper) (*BlockDBWrap
 					Columns: []clause.Column{{Name: "block_event_id"}, {Name: "index"}},
 					// Force update of value
 					DoUpdates: clause.AssignmentColumns([]string{"value"}),
-				}).Create(&allAttributes).Error; err != nil {
+				}).CreateInBatches(&allAttributes, 1000).Error; err != nil {
 					config.Log.Error("Error creating begin block event attributes. continue", err)
 					return err
 				}
