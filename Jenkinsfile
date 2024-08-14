@@ -196,7 +196,7 @@ void runApplication() {
               --base.start-block 1954077 \
               --base.end-block -1 \
               --base.throttling 2.005 \
-              --base.rpc-workers 1 \
+              --base.rpc-workers 10 \
               --base.index-transactions true \
               --base.index-block-events true \
               --probe.rpc ${env.probeRpc} \
