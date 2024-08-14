@@ -144,10 +144,6 @@ func customBlockEventRegistration(registry map[string][]parsers.BlockEventParser
 	return registry, tracker, nil
 }
 
-func RegisterCustomModels(models []any) {
-	indexer.customModels = models
-}
-
 func setupIndex(cmd *cobra.Command, args []string) error {
 	bindFlags(cmd, viperConf)
 
