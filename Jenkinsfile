@@ -167,10 +167,10 @@ void runApplication() {
         env.probeChainID = "dymension_1100-1"
         env.probeChainName = "dymension"
     } else if (env.agent == "nillion") {
-        env.probeRpc = "http://"
-        env.probeAccountPrefix = ""
-        env.probeChainID = ""
-        env.probeChainName = ""
+        env.probeRpc = "http://159.69.61.113:26657"
+        env.probeAccountPrefix = "nillion"
+        env.probeChainID = "nillion-chain-testnet-1"
+        env.probeChainName = "nillion"
     }
     if (appStatus.contains("true")) {
         sh script: "docker rm -fv ${env.DOCKER_APP}", label: "Remove ${env.DOCKER_APP} container"
