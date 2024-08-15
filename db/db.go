@@ -381,14 +381,16 @@ func IndexNewBlock(db *gorm.DB, block models.Block, txs []TxDBWrapper, indexerCo
 		for ind, _ := range signaturesCopy {
 			signaturesCopy[ind].BlockID = uint64(block.ID)
 		}
-		err := dbTransaction.Clauses(
-			clause.OnConflict{
-				Columns:   []clause.Column{{Name: "block_id"}, {Name: "validator_address"}},
-				UpdateAll: true,
-			}).Create(signaturesCopy).Error
-		if err != nil {
-			config.Log.Error("Error creating block signatures in events.", err)
-			return err
+		if len(signaturesCopy) > 0 {
+			err := dbTransaction.Clauses(
+				clause.OnConflict{
+					Columns:   []clause.Column{{Name: "block_id"}, {Name: "validator_address"}},
+					UpdateAll: true,
+				}).Create(signaturesCopy).Error
+			if err != nil {
+				config.Log.Error("Error creating block signatures in events.", err)
+				return err
+			}
 		}
 		block.Signatures = signaturesCopy
 
