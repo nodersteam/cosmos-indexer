@@ -157,16 +157,19 @@ void runMongo() {
 void runApplication() {
     def appStatus = sh(script: "docker ps -a | grep ${env.DOCKER_APP} && echo true || echo false", returnStdout: true).trim()
     if (env.agent == "celestia") {
+        env.baseStartBlock = "1954077"
         env.probeRpc = "http://65.109.54.91:11657"
         env.probeAccountPrefix = "celestia"
         env.probeChainID = "celestia"
         env.probeChainName = "celestia"
     } else if (env.agent == "dymension") {
+        env.baseStartBlock = "1954077"
         env.probeRpc = "http://65.109.54.91:26657"
         env.probeAccountPrefix = "dym"
         env.probeChainID = "dymension_1100-1"
         env.probeChainName = "dymension"
     } else if (env.agent == "nillion") {
+        env.baseStartBlock = "10"
         env.probeRpc = "http://159.69.61.113:26657"
         env.probeAccountPrefix = "nillion"
         env.probeChainID = "nillion-chain-testnet-1"
@@ -187,7 +190,7 @@ void runApplication() {
             /bin/sh -c "/bin/cosmos-indexer index \
               --log.pretty = true \
               --log.level = info \
-              --base.start-block 1954077 \
+              --base.start-block ${env.baseStartBlock} \
               --base.end-block -1 \
               --base.throttling 2.005 \
               --base.rpc-workers 10 \
