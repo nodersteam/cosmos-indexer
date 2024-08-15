@@ -49,12 +49,6 @@ void dockerLogin() {
     }
 }
 
-void buildApplication() {
-    dockerLogin()
-    sh "docker build -t ${env.IMAGE_NAME} --build-arg TARGETPLATFORM=linux/amd64 ."
-    sh script: "docker push ${env.IMAGE_NAME}"
-}
-
 void buildAndDeployApplication() {
     env.DOCKER_APP = "${JOB_NAME}"
     env.DOCKER_NET_NAME = "vpcbr"
@@ -75,15 +69,10 @@ void buildAndDeployApplication() {
                 node(processedString) {
                     echo "${processedString}"
                     env.agent = "${processedString}"
-                    if (env.NODE_NAME == "dymension") {
-                        checkoutBranch("feature/dymension-updates")
-                        env.IMAGE_NAME = "${env.NEXUS_REGISTRY}/${env.DOCKER_APP}:dymension-updates"
-                    } else {
-                        checkout scm
-                        env.TAG = sh(script: 'git describe --tags', returnStdout: true).trim()
-                        echo "The current tag is ${env.TAG}"
-                        env.IMAGE_NAME = "${env.NEXUS_REGISTRY}/${env.DOCKER_APP}:${env.TAG}"
-                    }
+                    checkout scm
+                    env.TAG = sh(script: 'git describe --tags', returnStdout: true).trim()
+                    echo "The current tag is ${env.TAG}"
+                    env.IMAGE_NAME = "${env.NEXUS_REGISTRY}/${env.DOCKER_APP}:${env.TAG}"
                     dockerLogin()
                     sh "docker build -t ${env.IMAGE_NAME} --build-arg TARGETPLATFORM=linux/amd64 ."
                     sh script: "docker push ${env.IMAGE_NAME}"
@@ -177,6 +166,11 @@ void runApplication() {
         env.probeAccountPrefix = "dym"
         env.probeChainID = "dymension_1100-1"
         env.probeChainName = "dymension"
+    } else if (env.agent == "nillion") {
+        env.probeRpc = "http://"
+        env.probeAccountPrefix = ""
+        env.probeChainID = ""
+        env.probeChainName = ""
     }
     if (appStatus.contains("true")) {
         sh script: "docker rm -fv ${env.DOCKER_APP}", label: "Remove ${env.DOCKER_APP} container"
