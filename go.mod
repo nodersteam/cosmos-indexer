@@ -34,7 +34,7 @@ require (
 	github.com/cosmos/ibc-go/v7 v7.5.1
 	github.com/jackc/pgx/v5 v5.3.1
 	github.com/lib/pq v1.10.7
-	github.com/nodersteam/probe v0.0.4
+	github.com/nodersteam/probe v0.0.5
 	github.com/ory/dockertest/v3 v3.10.0
 	github.com/redis/go-redis/v9 v9.5.1
 	github.com/rs/zerolog v1.32.0
