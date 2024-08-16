@@ -3,12 +3,12 @@ package clients
 import (
 	coretypes "github.com/cometbft/cometbft/rpc/core/types"
 	types "github.com/cosmos/cosmos-sdk/types"
-	"github.com/cosmos/cosmos-sdk/types/query"
 	txTypes "github.com/cosmos/cosmos-sdk/types/tx"
 	"github.com/nodersteam/cosmos-indexer/config"
 	"github.com/nodersteam/cosmos-indexer/rpc"
 	probeClient "github.com/nodersteam/probe/client"
 	probeQuery "github.com/nodersteam/probe/query"
+	"math"
 	"time"
 )
 
@@ -45,10 +45,9 @@ func (c *chainRPC) GetTxsByBlockHeight(height int64) (*txTypes.GetTxsEventRespon
 	txsResponses := make([]*types.TxResponse, 0)
 
 	limit := uint64(100)
-	q := probeQuery.Query{Client: c.cl, Options: &probeQuery.QueryOptions{Height: height,
-		Pagination: &query.PageRequest{Limit: limit, CountTotal: true, Offset: 0},
-	}}
-	resp, err := q.TxByHeight(c.cl.Codec)
+	pageNum := uint64(1)
+	q := probeQuery.Query{Client: c.cl, Options: &probeQuery.QueryOptions{Height: height}}
+	resp, err := q.TxByHeight(c.cl.Codec, pageNum, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -56,19 +55,20 @@ func (c *chainRPC) GetTxsByBlockHeight(height int64) (*txTypes.GetTxsEventRespon
 	txs = append(txs, resp.Txs...)
 	txsResponses = append(txsResponses, resp.TxResponses...)
 
-	for resp.Total > uint64(len(txs)) {
-		q = probeQuery.Query{Client: c.cl,
-			Options: &probeQuery.QueryOptions{Height: height,
-				Pagination: &query.PageRequest{Limit: limit, Offset: uint64(len(txs))},
-			}}
+	if resp.Total > limit {
+		totalPages := uint64(math.Ceil(float64(resp.Total-limit) / float64(limit)))
 
-		chunkResp, err := q.TxByHeight(c.cl.Codec)
-		if err != nil {
-			config.Log.Errorf("error getting tx by height %d %s", height, err.Error())
-			continue
+		for totalPages >= pageNum {
+			pageNum++
+
+			chunkResp, err := q.TxByHeight(c.cl.Codec, pageNum, limit)
+			if err != nil {
+				config.Log.Errorf("error getting tx by height %d %s", height, err.Error())
+				continue
+			}
+			txs = append(txs, chunkResp.Txs...)
+			txsResponses = append(txsResponses, chunkResp.TxResponses...)
 		}
-		txs = append(txs, chunkResp.Txs...)
-		txsResponses = append(txsResponses, chunkResp.TxResponses...)
 	}
 
 	// TODO unwrap to internal type

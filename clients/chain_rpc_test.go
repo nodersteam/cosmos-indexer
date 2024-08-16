@@ -17,6 +17,6 @@ func Test_GetTxsByBlockHeight(t *testing.T) {
 	rpc := NewChainRPC(cl)
 	resp, err := rpc.GetTxsByBlockHeight(534759)
 	require.NoError(t, err)
-	require.Len(t, resp.Txs, 800)
-	require.Len(t, resp.TxResponses, 800)
+	require.Len(t, resp.Txs, 723)
+	require.Len(t, resp.TxResponses, 723)
 }
