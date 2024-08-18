@@ -33,6 +33,7 @@ require (
 	github.com/cosmos/cosmos-sdk v0.47.11
 	github.com/cosmos/ibc-go/v7 v7.5.1
 	github.com/jackc/pgx/v5 v5.3.1
+	github.com/jinzhu/copier v0.4.0
 	github.com/lib/pq v1.10.7
 	github.com/nodersteam/probe v0.0.5
 	github.com/ory/dockertest/v3 v3.10.0

@@ -53,6 +53,13 @@ services:
         ipv4_address: 10.5.0.21
     ports:
       - '27017-27019:27017-27019'
+  dozzle:
+    container_name: dozzle
+    image: amir20/dozzle:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8888:8080"
   indexer:
     restart: "always"
     build:
@@ -80,7 +87,10 @@ services:
       cosmos-indexer index \
       --log.pretty = true \
       --log.level = info \
-      --base.start-block 1880083 \
+      --base.reindex = true \
+      --base.genesis-index true \
+      --base.genesis-blocks-step 5000 \
+      --base.start-block 100000 \
       --base.end-block -1 \
       --base.throttling 2.005 \
       --base.rpc-workers 10 \

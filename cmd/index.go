@@ -4,23 +4,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net"
+	"os"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/nodersteam/cosmos-indexer/clients"
 	"github.com/nodersteam/cosmos-indexer/core/tx"
 	"github.com/nodersteam/cosmos-indexer/pkg/consumer"
 	"github.com/nodersteam/cosmos-indexer/pkg/model"
 	"github.com/redis/go-redis/v9"
+	"github.com/rs/zerolog/log"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
-	"io"
-	"log"
-	"net"
-	"os"
-	"strings"
-	"sync"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nodersteam/cosmos-indexer/pkg/repository"
@@ -46,7 +47,6 @@ import (
 
 type Indexer struct {
 	cfg                                 *config.IndexConfig
-	dryRun                              bool
 	db                                  *gorm.DB
 	cl                                  *client.ChainClient
 	blockEnqueueFunction                func(chan *core.EnqueueData) error
@@ -92,58 +92,6 @@ var indexCmd = &cobra.Command{
 	Run:     index,
 }
 
-func RegisterCustomBeginBlockEventParser(eventKey string, parser parsers.BlockEventParser) {
-	var err error
-	indexer.customBeginBlockEventParserRegistry, indexer.customBeginBlockParserTrackers, err = customBlockEventRegistration(
-		indexer.customBeginBlockEventParserRegistry,
-		indexer.customBeginBlockParserTrackers,
-		eventKey,
-		parser,
-		models.BeginBlockEvent,
-	)
-
-	if err != nil {
-		config.Log.Fatal("Error registering BeginBlock custom parser", err)
-	}
-}
-
-func RegisterCustomEndBlockEventParser(eventKey string, parser parsers.BlockEventParser) {
-	var err error
-	indexer.customEndBlockEventParserRegistry, indexer.customEndBlockParserTrackers, err = customBlockEventRegistration(
-		indexer.customEndBlockEventParserRegistry,
-		indexer.customEndBlockParserTrackers,
-		eventKey,
-		parser,
-		models.EndBlockEvent,
-	)
-
-	if err != nil {
-		config.Log.Fatal("Error registering EndBlock custom parser", err)
-	}
-}
-
-func customBlockEventRegistration(registry map[string][]parsers.BlockEventParser, tracker map[string]models.BlockEventParser, eventKey string, parser parsers.BlockEventParser, lifecycleValue models.BlockLifecyclePosition) (map[string][]parsers.BlockEventParser, map[string]models.BlockEventParser, error) {
-	if registry == nil {
-		registry = make(map[string][]parsers.BlockEventParser)
-	}
-
-	if tracker == nil {
-		tracker = make(map[string]models.BlockEventParser)
-	}
-
-	registry[eventKey] = append(registry[eventKey], parser)
-
-	if _, ok := tracker[parser.Identifier()]; ok {
-		return registry, tracker, fmt.Errorf("found duplicate block event parser with identifier \"%s\", parsers must be uniquely identified", parser.Identifier())
-	}
-
-	tracker[parser.Identifier()] = models.BlockEventParser{
-		Identifier:             parser.Identifier(),
-		BlockLifecyclePosition: lifecycleValue,
-	}
-	return registry, tracker, nil
-}
-
 func setupIndex(cmd *cobra.Command, args []string) error {
 	bindFlags(cmd, viperConf)
 
@@ -171,8 +119,6 @@ func setupIndex(cmd *cobra.Command, args []string) error {
 	}
 
 	indexer.db = db
-
-	indexer.dryRun = indexer.cfg.Base.Dry
 
 	indexer.blockEventFilterRegistries = blockEventFilterRegistries{
 		beginBlockEventFilterRegistry: &filter.StaticBlockEventFilterRegistry{},
@@ -226,8 +172,6 @@ func setupIndex(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// The Indexer struct is used to perform index operations
-
 func setupIndexer() *Indexer {
 	var err error
 
@@ -265,14 +209,62 @@ func setupIndexer() *Indexer {
 	return &indexer
 }
 
-func index(cmd *cobra.Command, args []string) {
-	// Setup the indexer with config, db, and cl
+func calculateGoroutines(startBlock, endBlock, steps int64) (int64, []int64) {
+	totalBlocks := endBlock - startBlock + 1
+	numGoroutines := (totalBlocks + steps - 1) / steps
+
+	blocksPerGoroutine := make([]int64, numGoroutines)
+
+	for i := int64(0); i < numGoroutines; i++ {
+		if totalBlocks >= steps {
+			blocksPerGoroutine[i] = steps
+			totalBlocks -= steps
+		} else {
+			blocksPerGoroutine[i] = totalBlocks
+		}
+	}
+
+	return numGoroutines, blocksPerGoroutine
+}
+
+func index(_ *cobra.Command, _ []string) {
 	idxr := setupIndexer()
+
 	dbConn, err := idxr.db.DB()
 	if err != nil {
 		config.Log.Fatal("Failed to connect to DB", err)
 	}
 	defer dbConn.Close()
+
+	ctx := context.Background()
+	defer ctx.Done()
+
+	if idxr.cfg.Base.GenesisIndex {
+		log.Info().Msgf("found genesis-index param enabled.")
+		steps := idxr.cfg.Base.GenesisBlocksStep
+
+		numGoroutines, blocks := calculateGoroutines(0, idxr.cfg.Base.StartBlock, steps)
+		counter := int64(0)
+		log.Info().Msgf("num go routines for genesis indexing %d", numGoroutines)
+		for i := int64(0); i < numGoroutines; i++ {
+			blocksToProceed := blocks[i]
+			endBlock := counter + blocksToProceed
+
+			go func(ctx context.Context, indexer *Indexer, startBlock, endBlock int64) {
+				runIndexer(ctx, indexer, false, startBlock, endBlock)
+			}(ctx, &indexer, counter, endBlock)
+			counter += blocksToProceed
+		}
+	}
+
+	idxr.cfg.Base.GenesisIndex = false
+	//runIndexer(ctx, idxr, true, idxr.cfg.Base.StartBlock, idxr.cfg.Base.EndBlock)
+
+	<-ctx.Done()
+}
+
+func runIndexer(ctx context.Context, idxr *Indexer, runSrv bool, startBlock, endBlock int64) {
+	log.Info().Msgf("🚀starting indexer for blocks %d - %d", startBlock, endBlock)
 
 	// blockChans are just the block heights; limit max jobs in the queue, otherwise this queue would contain one
 	// item (block height) for every block on the entire blockchain we're indexing. Furthermore, once the queue
@@ -329,15 +321,6 @@ func index(cmd *cobra.Command, args []string) {
 	blockEventsDataChan := make(chan *blockEventsDBData, 4*rpcQueryThreads)
 	txDataChan := make(chan *dbData, 4*rpcQueryThreads)
 
-	// inbound grpc server
-	ctx := context.Background()
-
-	grpcServUrl := fmt.Sprintf(":%d", idxr.cfg.Server.Port)
-	listener, err := net.Listen("tcp", grpcServUrl)
-	if err != nil {
-		config.Log.Fatal("Unable to run listener", err)
-	}
-
 	dbDSN := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
 		idxr.cfg.Database.User, idxr.cfg.Database.Password, idxr.cfg.Database.Host, idxr.cfg.Database.Port, idxr.cfg.Database.Database)
 	dbConnRepo, err := connectPgxPool(ctx, dbDSN)
@@ -383,21 +366,29 @@ func index(cmd *cobra.Command, args []string) {
 	}
 	cache := repository.NewCache(rdb)
 
-	blocksServer := server.NewBlocksServer(srvBlocks, srvTxs, srvSearch, *cache)
-	size := 1024 * 1024 * 50
-	grpcServer := grpc.NewServer(
-		grpc.MaxSendMsgSize(size),
-		grpc.MaxRecvMsgSize(size))
-	blocks.RegisterBlocksServiceServer(grpcServer, blocksServer)
-	go func() {
-		log.Println("blocks server started: " + grpcServUrl)
-		if err = grpcServer.Serve(listener); err != nil {
-			log.Fatal(err)
-			grpcServer.GracefulStop()
-			return
+	if runSrv {
+		log.Info().Msgf("running Blocks server %d", idxr.cfg.Server.Port)
+		grpcServUrl := fmt.Sprintf(":%d", idxr.cfg.Server.Port)
+		listener, err := net.Listen("tcp", grpcServUrl)
+		if err != nil {
+			config.Log.Fatal("Unable to run listener", err)
 		}
-	}()
 
+		blocksServer := server.NewBlocksServer(srvBlocks, srvTxs, srvSearch, *cache)
+		size := 1024 * 1024 * 50
+		grpcServer := grpc.NewServer(
+			grpc.MaxSendMsgSize(size),
+			grpc.MaxRecvMsgSize(size))
+		blocks.RegisterBlocksServiceServer(grpcServer, blocksServer)
+		go func() {
+			log.Info().Msgf("blocks server started: " + grpcServUrl)
+			if err = grpcServer.Serve(listener); err != nil {
+				log.Panic()
+				grpcServer.GracefulStop()
+				return
+			}
+		}()
+	}
 	chBlocks := make(chan *model.BlockInfo, 1000)
 	defer close(chBlocks)
 	chTxs := make(chan *models.Tx, 1000)
@@ -406,11 +397,12 @@ func index(cmd *cobra.Command, args []string) {
 	cacheConsumer := consumer.NewCacheConsumer(cache, chBlocks, chTxs, cache)
 	go cacheConsumer.RunBlocks(ctx)
 	go cacheConsumer.RunTransactions(ctx)
-	defer ctx.Done()
 
 	aggregatesConsumer := consumer.NewAggregatesConsumer(cache, repoBlocks, repoTxs)
 	go aggregatesConsumer.Consume(ctx)
-	go aggregatesConsumer.RefreshMaterializedViews(ctx)
+	if runSrv {
+		go aggregatesConsumer.RefreshMaterializedViews(ctx)
+	}
 
 	wg.Add(1)
 	go idxr.processBlocks(&wg, core.HandleFailedBlock,
@@ -423,47 +415,55 @@ func index(cmd *cobra.Command, args []string) {
 		*cache)
 
 	wg.Add(1)
-	go idxr.doDBUpdates(&wg, txDataChan, blockEventsDataChan, dbChainID, chTxs, repoTxs, cache)
+	go idxr.doDBUpdates(&wg, txDataChan, blockEventsDataChan, chTxs, repoTxs, cache)
 
 	// search index
 	txSearchConsumer := consumer.NewSearchTxConsumer(rdb, "pub/txs", searchRepo) // TODO
-	go txSearchConsumer.Consume(ctx)
-
-	blSearchConsumer := consumer.NewSearchBlocksConsumer(rdb, "pub/blocks", searchRepo) // TODO
-	go blSearchConsumer.Consume(ctx)
-
-	// migration
 	go func() {
-		config.Log.Info("Starting migration")
-		db, err = mongoDBMigrate(ctx, db, dbConnRepo, searchRepo)
+		err = txSearchConsumer.Consume(ctx)
 		if err != nil {
-			panic(err)
+			log.Err(err).Msgf("error on tx search consumer closing")
 		}
-		config.Log.Info("Migration complete")
 	}()
 
+	if runSrv {
+		blSearchConsumer := consumer.NewSearchBlocksConsumer(rdb, "pub/blocks", searchRepo) // TODO
+		go blSearchConsumer.Consume(ctx)
+
+		// migration
+		go func() {
+			config.Log.Info("Starting migration")
+			db, err = mongoDBMigrate(ctx, db, dbConnRepo, searchRepo)
+			if err != nil {
+				panic(err)
+			}
+			config.Log.Info("Migration complete")
+		}()
+	}
+
+	var blockEnqueueFunction func(chan *core.EnqueueData) error
 	switch {
-	// If block enqueue function has been explicitly set, use that
-	case idxr.blockEnqueueFunction != nil:
 	// Default block enqueue functions based on config values
 	case idxr.cfg.Base.ReindexMessageType != "":
-		idxr.blockEnqueueFunction, err = core.GenerateMsgTypeEnqueueFunction(idxr.db, *idxr.cfg, dbChainID, idxr.cfg.Base.ReindexMessageType)
+		blockEnqueueFunction, err = core.GenerateMsgTypeEnqueueFunction(idxr.db, *idxr.cfg, dbChainID,
+			idxr.cfg.Base.ReindexMessageType, startBlock, endBlock)
 		if err != nil {
 			config.Log.Fatal("Failed to generate block enqueue function", err)
 		}
 	case idxr.cfg.Base.BlockInputFile != "":
-		idxr.blockEnqueueFunction, err = core.GenerateBlockFileEnqueueFunction(*idxr.cfg, idxr.cfg.Base.BlockInputFile, idxr.rpcClient)
+		blockEnqueueFunction, err = core.GenerateBlockFileEnqueueFunction(*idxr.cfg, idxr.cfg.Base.BlockInputFile, idxr.rpcClient)
 		if err != nil {
 			config.Log.Fatal("Failed to generate block enqueue function", err)
 		}
 	default:
-		idxr.blockEnqueueFunction, err = core.GenerateDefaultEnqueueFunction(idxr.db, *idxr.cfg, idxr.cl, dbChainID, idxr.rpcClient)
+		blockEnqueueFunction, err = core.GenerateDefaultEnqueueFunction(idxr.db, *idxr.cfg, dbChainID,
+			idxr.rpcClient, startBlock, endBlock)
 		if err != nil {
 			config.Log.Fatal("Failed to generate block enqueue function", err)
 		}
 	}
 
-	err = idxr.blockEnqueueFunction(blockEnqueueChan)
+	err = blockEnqueueFunction(blockEnqueueChan)
 	if err != nil {
 		config.Log.Fatal("Block enqueue failed", err)
 	}
@@ -512,7 +512,7 @@ func mongoDBMigrate(ctx context.Context,
 						return err
 					}
 					if err = search.AddHash(context.Background(), txHash, "transaction", 0); err != nil {
-						log.Println(err)
+						log.Err(err).Msgf("Failed to add hash to index")
 					}
 				}
 			}
@@ -528,7 +528,7 @@ func mongoDBMigrate(ctx context.Context,
 						return err
 					}
 					if err = search.AddHash(context.Background(), txHash, "block", 0); err != nil {
-						log.Println(err)
+						log.Err(err).Msgf("Failed to add hash to index")
 					}
 				}
 			}
@@ -556,7 +556,7 @@ func mongoDBMigrate(ctx context.Context,
 						return err
 					}
 					if err = search.AddHash(context.Background(), txHash, "transaction", 0); err != nil {
-						log.Println(err)
+						log.Err(err).Msgf("Failed to add hash to index")
 					}
 				}
 			}
@@ -573,7 +573,7 @@ func mongoDBMigrate(ctx context.Context,
 						return err
 					}
 					if err = search.AddHash(context.Background(), txHash, "block", blockHeight); err != nil {
-						log.Println(err)
+						log.Err(err).Msgf("Failed to add hash to index")
 					}
 				}
 			}
@@ -605,15 +605,6 @@ func connectPgxPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 	return conn, nil
 }
 
-func GetBlockEventsStartIndexHeight(db *gorm.DB, chainID uint) int64 {
-	block, err := dbTypes.GetHighestEventIndexedBlock(db, chainID)
-	if err != nil && err.Error() != "record not found" {
-		log.Fatalf("Cannot retrieve highest indexed block event. Err: %v", err)
-	}
-
-	return block.Height
-}
-
 // GetIndexerStartingHeight will determine which block to start at
 // if start block is set to -1, it will start at the highest block indexed
 // otherwise, it will start at the first missing block between the start and end height
@@ -622,7 +613,8 @@ func (idxr *Indexer) GetIndexerStartingHeight(chainID uint) int64 {
 	if idxr.cfg.Base.StartBlock == -1 {
 		latestBlock, err := idxr.rpcClient.GetLatestBlockHeight()
 		if err != nil {
-			log.Fatalf("Error getting blockchain latest height. Err: %v", err)
+			log.Err(err).Msgf("Error getting blockchain latest height. Err: %v", err)
+			log.Fatal()
 		}
 
 		fmt.Println("Found latest block", latestBlock)
@@ -776,7 +768,6 @@ func (idxr *Indexer) toBlockInfo(in models.Block) *model.BlockInfo {
 func (idxr *Indexer) doDBUpdates(wg *sync.WaitGroup,
 	txDataChan chan *dbData,
 	blockEventsDataChan chan *blockEventsDBData,
-	dbChainID uint,
 	txsCh chan *models.Tx,
 	txRepo repository.Txs,
 	cache repository.PubSubCache) {
@@ -802,21 +793,16 @@ func (idxr *Indexer) doDBUpdates(wg *sync.WaitGroup,
 				continue
 			}
 			dbWrites++
-			// While debugging we'll sometimes want to turn off INSERTS to the DB
-			// Note that this does not turn off certain reads or DB connections.
-			if !idxr.dryRun {
-				config.Log.Info(fmt.Sprintf("Indexing %v TXs from block %d", len(data.txDBWrappers), data.block.Height))
-				_, _, err := dbTypes.IndexNewBlock(idxr.db, data.block, data.txDBWrappers, *idxr.cfg)
+
+			config.Log.Info(fmt.Sprintf("Indexing %v TXs from block %d", len(data.txDBWrappers), data.block.Height))
+			_, _, err := dbTypes.IndexNewBlock(idxr.db, data.block, data.txDBWrappers, *idxr.cfg)
+			if err != nil {
+				// Do a single reattempt on failure
+				dbReattempts++
+				_, _, err = dbTypes.IndexNewBlock(idxr.db, data.block, data.txDBWrappers, *idxr.cfg)
 				if err != nil {
-					// Do a single reattempt on failure
-					dbReattempts++
-					_, _, err = dbTypes.IndexNewBlock(idxr.db, data.block, data.txDBWrappers, *idxr.cfg)
-					if err != nil {
-						config.Log.Fatal(fmt.Sprintf("Error indexing block %v.", data.block.Height), err)
-					}
+					config.Log.Fatal(fmt.Sprintf("Error indexing block %v.", data.block.Height), err)
 				}
-			} else {
-				config.Log.Info(fmt.Sprintf("Processing block %d (dry run, block data will not be stored in DB).", data.block.Height))
 			}
 
 			// Just measuring how many blocks/second we can process
@@ -863,7 +849,7 @@ func (idxr *Indexer) doDBUpdates(wg *sync.WaitGroup,
 				config.Log.Fatal(fmt.Sprintf("Error indexing block events for %s.", identifierLoggingString), err)
 			}
 
-			err = dbTypes.IndexCustomBlockEvents(*idxr.cfg, idxr.db, idxr.dryRun, indexedDataset, identifierLoggingString, idxr.customBeginBlockParserTrackers, idxr.customEndBlockParserTrackers)
+			err = dbTypes.IndexCustomBlockEvents(*idxr.cfg, idxr.db, indexedDataset, identifierLoggingString, idxr.customBeginBlockParserTrackers, idxr.customEndBlockParserTrackers)
 
 			if err != nil {
 				config.Log.Fatal(fmt.Sprintf("Error indexing custom block events for %s.", identifierLoggingString), err)

@@ -25,6 +25,8 @@ type indexBase struct {
 	retryBase
 	ReindexMessageType         string `mapstructure:"reindex-message-type"`
 	ReattemptFailedBlocks      bool   `mapstructure:"reattempt-failed-blocks"`
+	GenesisIndex               bool   `mapstructure:"genesis-index"`
+	GenesisBlocksStep          int64  `mapstructure:"genesis-blocks-step"`
 	StartBlock                 int64  `mapstructure:"start-block"`
 	EndBlock                   int64  `mapstructure:"end-block"`
 	BlockInputFile             string `mapstructure:"block-input-file"`
@@ -37,7 +39,6 @@ type indexBase struct {
 	ExitWhenCaughtUp           bool   `mapstructure:"exit-when-caught-up"`
 	BlockEventIndexingEnabled  bool   `mapstructure:"index-block-events"`
 	FilterFile                 string `mapstructure:"filter-file"`
-	Dry                        bool   `mapstructure:"dry"`
 }
 
 // Flags for specific, deeper indexing behavior
@@ -59,7 +60,9 @@ func SetupIndexSpecificFlags(conf *IndexConfig, cmd *cobra.Command) {
 	// filter configs
 	cmd.PersistentFlags().StringVar(&conf.Base.FilterFile, "base.filter-file", "", "path to a file containing a JSON config of block event and message type filters to apply to beginblocker events, endblocker events and TX messages")
 	// other base setting
-	cmd.PersistentFlags().BoolVar(&conf.Base.Dry, "base.dry", false, "index the chain but don't insert data in the DB.")
+	cmd.PersistentFlags().BoolVar(&conf.Base.GenesisIndex, "base.genesis-index", false, "index chain from genesis block")
+	cmd.PersistentFlags().Int64Var(&conf.Base.GenesisBlocksStep, "base.genesis-blocks-step", 5000, "block gap for genesis threads")
+
 	cmd.PersistentFlags().Int64Var(&conf.Base.RPCWorkers, "base.rpc-workers", 1, "rpc workers")
 	cmd.PersistentFlags().BoolVar(&conf.Base.WaitForChain, "base.wait-for-chain", false, "wait for chain to be in sync?")
 	cmd.PersistentFlags().Int64Var(&conf.Base.WaitForChainDelay, "base.wait-for-chain-delay", 10, "seconds to wait between each check for node to catch up to the chain")
