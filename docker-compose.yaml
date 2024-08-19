@@ -87,9 +87,6 @@ services:
       cosmos-indexer index \
       --log.pretty = true \
       --log.level = info \
-      --base.reindex = true \
-      --base.genesis-index true \
-      --base.genesis-blocks-step 5000 \
       --base.start-block 100000 \
       --base.end-block -1 \
       --base.throttling 2.005 \

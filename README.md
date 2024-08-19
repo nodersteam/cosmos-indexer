@@ -15,6 +15,14 @@ Keep an eye on the output for the index and access the web server through the pr
 
 It's indexing time! Follow the steps below to get started.
 
+## Index since Genesis
+
+```yaml
+      --base.reindex = true \
+      --base.genesis-index true \
+      --base.genesis-blocks-step 5000 \
+```
+
 ### Prerequisites
 
 Before you can start indexing a chain, you need to set up the application's dependencies:
