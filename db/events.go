@@ -92,9 +92,8 @@ func IndexBlockEvents(db *gorm.DB, blockDBWrapper *BlockDBWrapper) (*BlockDBWrap
 					},
 				},
 				clause.OnConflict{
-					Columns: []clause.Column{{Name: "type"}},
-					//DoUpdates: clause.AssignmentColumns([]string{"type"}),
-					DoNothing: true,
+					Columns:   []clause.Column{{Name: "type"}},
+					DoUpdates: clause.AssignmentColumns([]string{"type"}),
 				},
 			).CreateInBatches(&uniqueBlockEventTypes, 1000).Error; err != nil {
 				config.Log.Error("Error creating begin block event types.", err)
@@ -121,9 +120,8 @@ func IndexBlockEvents(db *gorm.DB, blockDBWrapper *BlockDBWrapper) (*BlockDBWrap
 				},
 			},
 			clause.OnConflict{
-				Columns: []clause.Column{{Name: "key"}},
-				//DoUpdates: clause.AssignmentColumns([]string{"key"}),
-				DoNothing: true, // TODO deadlock
+				Columns:   []clause.Column{{Name: "key"}},
+				DoUpdates: clause.AssignmentColumns([]string{"key"}),
 			},
 		).CreateInBatches(&uniqueBlockEventAttributeKeys, 1000).Error; err != nil {
 			config.Log.Error("Error creating begin block event attribute keys.", err)
@@ -164,9 +162,8 @@ func IndexBlockEvents(db *gorm.DB, blockDBWrapper *BlockDBWrapper) (*BlockDBWrap
 			err = dbTransaction.Transaction(func(tx *gorm.DB) error {
 				if err = tx.Clauses(
 					clause.OnConflict{
-						Columns: []clause.Column{{Name: "index"}, {Name: "lifecycle_position"}, {Name: "block_id"}},
-						//DoUpdates: clause.AssignmentColumns([]string{"block_event_type_id"}),
-						DoNothing: true, // TODO deadlock
+						Columns:   []clause.Column{{Name: "index"}, {Name: "lifecycle_position"}, {Name: "block_id"}},
+						DoUpdates: clause.AssignmentColumns([]string{"block_event_type_id"}),
 					},
 				).CreateInBatches(&allBlockEvents, 1000).Error; err != nil {
 					config.Log.Error("Error creating begin block events.", err)
@@ -210,9 +207,8 @@ func IndexBlockEvents(db *gorm.DB, blockDBWrapper *BlockDBWrapper) (*BlockDBWrap
 			if len(allAttributes) != 0 {
 				err = dbTransaction.Transaction(func(tx *gorm.DB) error {
 					if err = tx.Clauses(clause.OnConflict{
-						//Columns: []clause.Column{{Name: "block_event_id"}, {Name: "index"}},
-						//DoUpdates: clause.AssignmentColumns([]string{"value"}),
-						DoNothing: true, // TODO deadlock
+						Columns:   []clause.Column{{Name: "block_event_id"}, {Name: "index"}},
+						DoUpdates: clause.AssignmentColumns([]string{"value"}),
 					}).CreateInBatches(&allAttributes, 1000).Error; err != nil {
 						config.Log.Error("Error creating begin block event attributes. continue", err)
 						return err
