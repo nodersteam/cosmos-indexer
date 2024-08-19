@@ -22,7 +22,12 @@ func IndexBlockEvents(db *gorm.DB, blockDBWrapper *BlockDBWrapper) (*BlockDBWrap
 		consAddress := blockDBWrapper.Block.ProposerConsAddress
 
 		// create cons address if it doesn't exist
-		if err := dbTransaction.Where(&consAddress).FirstOrCreate(&consAddress).Error; err != nil {
+		if err := dbTransaction.Where(&consAddress).Clauses(
+			clause.OnConflict{
+				Columns:   []clause.Column{{Name: "address"}},
+				DoUpdates: clause.AssignmentColumns([]string{"address"}),
+			}).
+			FirstOrCreate(&consAddress).Error; err != nil {
 			config.Log.Error("Error getting/creating cons address DB object.", err)
 			return err
 		}
@@ -79,20 +84,24 @@ func IndexBlockEvents(db *gorm.DB, blockDBWrapper *BlockDBWrapper) (*BlockDBWrap
 		}
 
 		// Bulk find or create on unique event types
-		if err := dbTransaction.Clauses(
-			clause.Returning{
-				Columns: []clause.Column{
-					{Name: "id"}, {Name: "type"},
+		err = dbTransaction.Transaction(func(tx *gorm.DB) error {
+			if err = tx.Clauses(
+				clause.Returning{
+					Columns: []clause.Column{
+						{Name: "id"}, {Name: "type"},
+					},
 				},
-			},
-			clause.OnConflict{
-				Columns:   []clause.Column{{Name: "type"}},
-				DoUpdates: clause.AssignmentColumns([]string{"type"}),
-			},
-		).CreateInBatches(&uniqueBlockEventTypes, 1000).Error; err != nil {
-			config.Log.Error("Error creating begin block event types.", err)
-			return err
-		}
+				clause.OnConflict{
+					Columns:   []clause.Column{{Name: "type"}},
+					DoUpdates: clause.AssignmentColumns([]string{"type"}),
+				},
+			).CreateInBatches(&uniqueBlockEventTypes, 1000).Error; err != nil {
+				config.Log.Error("Error creating begin block event types.", err)
+				return err
+			} // TODO Deadlock
+
+			return nil
+		})
 
 		for _, value := range uniqueBlockEventTypes {
 			blockDBWrapper.UniqueBlockEventTypes[value.Type] = value
@@ -150,16 +159,19 @@ func IndexBlockEvents(db *gorm.DB, blockDBWrapper *BlockDBWrapper) (*BlockDBWrap
 		if len(allBlockEvents) != 0 {
 			// This clause forces a return of ID for all items even on conflict
 			// We need this so that we can then create the proper associations with the attributes below
-			if err := dbTransaction.Clauses(
-				clause.OnConflict{
-					Columns: []clause.Column{{Name: "index"}, {Name: "lifecycle_position"}, {Name: "block_id"}},
-					// Force update of block event type ID
-					DoUpdates: clause.AssignmentColumns([]string{"block_event_type_id"}),
-				},
-			).CreateInBatches(&allBlockEvents, 1000).Error; err != nil {
-				config.Log.Error("Error creating begin block events.", err)
-				return err
-			}
+			err = dbTransaction.Transaction(func(tx *gorm.DB) error {
+				if err = tx.Clauses(
+					clause.OnConflict{
+						Columns:   []clause.Column{{Name: "index"}, {Name: "lifecycle_position"}, {Name: "block_id"}},
+						DoUpdates: clause.AssignmentColumns([]string{"block_event_type_id"}),
+					},
+				).CreateInBatches(&allBlockEvents, 1000).Error; err != nil {
+					config.Log.Error("Error creating begin block events.", err)
+					return err
+				}
+				return nil
+			})
+
 			var allAttributes []*models.BlockEventAttribute
 			for index := range blockDBWrapper.BeginBlockEvents {
 				currAttributes := blockDBWrapper.BeginBlockEvents[index].Attributes
@@ -193,14 +205,16 @@ func IndexBlockEvents(db *gorm.DB, blockDBWrapper *BlockDBWrapper) (*BlockDBWrap
 			}
 
 			if len(allAttributes) != 0 {
-				if err := dbTransaction.Clauses(clause.OnConflict{
-					Columns: []clause.Column{{Name: "block_event_id"}, {Name: "index"}},
-					// Force update of value
-					DoUpdates: clause.AssignmentColumns([]string{"value"}),
-				}).CreateInBatches(&allAttributes, 1000).Error; err != nil {
-					config.Log.Error("Error creating begin block event attributes. continue", err)
-					return err
-				}
+				err = dbTransaction.Transaction(func(tx *gorm.DB) error {
+					if err = tx.Clauses(clause.OnConflict{
+						Columns:   []clause.Column{{Name: "block_event_id"}, {Name: "index"}},
+						DoUpdates: clause.AssignmentColumns([]string{"value"}),
+					}).CreateInBatches(&allAttributes, 1000).Error; err != nil {
+						config.Log.Error("Error creating begin block event attributes. continue", err)
+						return err
+					}
+					return nil
+				})
 			}
 
 		}
@@ -212,7 +226,7 @@ func IndexBlockEvents(db *gorm.DB, blockDBWrapper *BlockDBWrapper) (*BlockDBWrap
 	return blockDBWrapper, err
 }
 
-func IndexCustomBlockEvents(conf config.IndexConfig, db *gorm.DB, dryRun bool, blockDBWrapper *BlockDBWrapper, identifierLoggingString string, beginBlockParserTrackers map[string]models.BlockEventParser, endBlockParserTrackers map[string]models.BlockEventParser) error {
+func IndexCustomBlockEvents(conf config.IndexConfig, db *gorm.DB, blockDBWrapper *BlockDBWrapper, identifierLoggingString string, beginBlockParserTrackers map[string]models.BlockEventParser, endBlockParserTrackers map[string]models.BlockEventParser) error {
 	return db.Transaction(func(dbTransaction *gorm.DB) error {
 		for _, beginBlockEvents := range blockDBWrapper.BeginBlockEvents {
 			if len(beginBlockEvents.BlockEventParsedDatasets) != 0 {

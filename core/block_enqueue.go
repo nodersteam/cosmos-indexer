@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/nodersteam/cosmos-indexer/clients"
+	"github.com/rs/zerolog/log"
 	"math"
 	"os"
 	"sort"
@@ -14,7 +15,6 @@ import (
 	dbTypes "github.com/nodersteam/cosmos-indexer/db"
 	"github.com/nodersteam/cosmos-indexer/db/models"
 	"github.com/nodersteam/cosmos-indexer/util"
-	"github.com/nodersteam/probe/client"
 	"gorm.io/gorm"
 )
 
@@ -102,10 +102,7 @@ func GenerateBlockFileEnqueueFunction(cfg config.IndexConfig,
 	}, nil
 }
 
-func GenerateMsgTypeEnqueueFunction(db *gorm.DB, cfg config.IndexConfig, chainID uint, msgType string) (func(chan *EnqueueData) error, error) {
-	// get the block range
-	startBlock := cfg.Base.StartBlock
-	endBlock := cfg.Base.EndBlock
+func GenerateMsgTypeEnqueueFunction(db *gorm.DB, cfg config.IndexConfig, chainID uint, msgType string, startBlock, endBlock int64) (func(chan *EnqueueData) error, error) {
 	if endBlock == -1 {
 		heighestBlock := dbTypes.GetHighestIndexedBlock(db, chainID)
 		endBlock = heighestBlock.Height
@@ -155,7 +152,8 @@ func GenerateMsgTypeEnqueueFunction(db *gorm.DB, cfg config.IndexConfig, chainID
 // If reindexing is disabled, it will not reindex blocks that have already been indexed. This means it may skip around finding blocks that have not been
 // indexed according to the current configuration.
 // If failed block reattempts are enabled, it will enqueue those according to the passed in configuration as well.
-func GenerateDefaultEnqueueFunction(db *gorm.DB, cfg config.IndexConfig, client *client.ChainClient, chainID uint, rpcClient clients.ChainRPC) (func(chan *EnqueueData) error, error) {
+func GenerateDefaultEnqueueFunction(db *gorm.DB, cfg config.IndexConfig, chainID uint,
+	rpcClient clients.ChainRPC, startBlock, endBlock int64) (func(chan *EnqueueData) error, error) {
 	var failedBlockEnqueueData []*EnqueueData
 	if cfg.Base.ReattemptFailedBlocks {
 		var failedEventBlocks []models.FailedEventBlock
@@ -205,8 +203,6 @@ func GenerateDefaultEnqueueFunction(db *gorm.DB, cfg config.IndexConfig, client 
 		sort.Slice(failedBlockEnqueueData, func(i, j int) bool { return failedBlockEnqueueData[i].Height < failedBlockEnqueueData[j].Height })
 	}
 
-	startBlock := cfg.Base.StartBlock
-	endBlock := cfg.Base.EndBlock
 	var latestBlock int64 = math.MaxInt64
 	reindexing := cfg.Base.ReIndex
 
@@ -231,6 +227,8 @@ func GenerateDefaultEnqueueFunction(db *gorm.DB, cfg config.IndexConfig, client 
 	} else {
 		config.Log.Info("Reindexing is enabled starting from initial start height")
 	}
+
+	log.Info().Msgf("block queue start and end blocks: %d - %d", startBlock, endBlock)
 
 	return func(blockChan chan *EnqueueData) error {
 		blocksInDB := make(map[int64]models.Block)
