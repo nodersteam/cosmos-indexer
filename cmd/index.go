@@ -239,33 +239,10 @@ func index(_ *cobra.Command, _ []string) {
 	ctx := context.Background()
 	defer ctx.Done()
 
-	if idxr.cfg.Base.GenesisIndex {
-		log.Info().Msgf("found genesis-index param enabled.")
-		steps := idxr.cfg.Base.GenesisBlocksStep
-
-		numGoroutines, blocks := calculateGoroutines(0, idxr.cfg.Base.StartBlock, steps)
-		counter := int64(0)
-		log.Info().Msgf("num go routines for genesis indexing %d", numGoroutines)
-		for i := int64(0); i < numGoroutines; i++ {
-			blocksToProceed := blocks[i]
-			endBlock := counter + blocksToProceed
-
-			go func(ctx context.Context, indexer *Indexer, startBlock, endBlock int64) {
-				runIndexer(ctx, indexer, false, startBlock, endBlock)
-			}(ctx, &indexer, counter, endBlock)
-			counter += blocksToProceed
-		}
-	}
-
-	idxr.cfg.Base.GenesisIndex = false
-	//runIndexer(ctx, idxr, true, idxr.cfg.Base.StartBlock, idxr.cfg.Base.EndBlock)
-
-	<-ctx.Done()
+	runIndexer(ctx, idxr, true, idxr.cfg.Base.StartBlock, idxr.cfg.Base.EndBlock)
 }
 
 func runIndexer(ctx context.Context, idxr *Indexer, runSrv bool, startBlock, endBlock int64) {
-	log.Info().Msgf("🚀starting indexer for blocks %d - %d", startBlock, endBlock)
-
 	// blockChans are just the block heights; limit max jobs in the queue, otherwise this queue would contain one
 	// item (block height) for every block on the entire blockchain we're indexing. Furthermore, once the queue
 	// is close to empty, we will spin up a new thread to fill it up with new jobs.
@@ -405,7 +382,9 @@ func runIndexer(ctx context.Context, idxr *Indexer, runSrv bool, startBlock, end
 	}
 
 	wg.Add(1)
-	go idxr.processBlocks(&wg, core.HandleFailedBlock,
+	go idxr.processBlocks(
+		&wg,
+		core.HandleFailedBlock,
 		blockRPCWorkerDataChan,
 		blockEventsDataChan,
 		txDataChan,
@@ -439,6 +418,35 @@ func runIndexer(ctx context.Context, idxr *Indexer, runSrv bool, startBlock, end
 			}
 			config.Log.Info("Migration complete")
 		}()
+	}
+
+	if idxr.cfg.Base.GenesisIndex {
+		log.Info().Msgf("found genesis-index param enabled.")
+		steps := idxr.cfg.Base.GenesisBlocksStep
+
+		numGoroutines, blocks := calculateGoroutines(0, idxr.cfg.Base.StartBlock, steps)
+		counter := int64(0)
+		log.Info().Msgf("num go routines for genesis indexing %d", numGoroutines)
+		for i := int64(0); i < numGoroutines; i++ {
+			blocksToProceed := blocks[i]
+			endBlockInternal := counter + blocksToProceed
+
+			log.Info().Msgf("🚀starting indexer for blocks %d - %d", counter, endBlockInternal)
+
+			blockEnqueueFunction, err := core.GenerateDefaultEnqueueFunction(idxr.db, *idxr.cfg, dbChainID,
+				idxr.rpcClient, counter, endBlockInternal)
+			if err != nil {
+				config.Log.Fatal("Failed to generate block enqueue function", err)
+			}
+			go func() {
+				err = blockEnqueueFunction(blockEnqueueChan)
+				if err != nil {
+					config.Log.Fatal("Block enqueue failed", err)
+				}
+			}()
+
+			counter += blocksToProceed
+		}
 	}
 
 	var blockEnqueueFunction func(chan *core.EnqueueData) error
