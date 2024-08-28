@@ -5,19 +5,6 @@ import (
 	"github.com/nodersteam/cosmos-indexer/parsers"
 )
 
-const (
-	OsmosisRewardDistribution uint = iota
-	TendermintLiquidityDepositCoinsToPool
-	TendermintLiquidityDepositPoolCoinReceived
-	TendermintLiquiditySwapTransactedCoinIn
-	TendermintLiquiditySwapTransactedCoinOut
-	TendermintLiquiditySwapTransactedFee
-	TendermintLiquidityWithdrawPoolCoinSent
-	TendermintLiquidityWithdrawCoinReceived
-	TendermintLiquidityWithdrawFee
-	OsmosisProtorevDeveloperRewardDistribution
-)
-
 type BlockDBWrapper struct {
 	Block                         *models.Block
 	BeginBlockEvents              []BlockEventDBWrapper
@@ -32,7 +19,6 @@ type BlockEventDBWrapper struct {
 	BlockEventParsedDatasets []parsers.BlockEventParsedData
 }
 
-// Store transactions with their messages for easy database creation
 type TxDBWrapper struct {
 	Tx                         models.Tx
 	Messages                   []MessageDBWrapper

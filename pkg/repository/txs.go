@@ -48,6 +48,7 @@ type Txs interface {
 	AccountInfo(ctx context.Context, account string) (*model.AccountInfo, error)
 	GetEvents(ctx context.Context, txID uint) ([]*model.TxEvents, error)
 	UpdateViews(ctx context.Context) error
+	ExtractNumber(value string) (decimal.Decimal, string, error)
 }
 
 type TxsFilter struct {
@@ -517,7 +518,7 @@ func (r *txs) GetSenderAndReceiver(ctx context.Context, hash string) (*model.TxS
 		   where txes.hash = $1
 		   and message_event_types.type = ANY($2)
 	order by messages.message_index, message_events.index, message_event_attributes.index asc`
-	types := []string{"transfer", "fungible_token_packet"}
+	types := []string{"transfer", "fungible_token_packet", "delegate", "coin_received", "coin_spent"}
 	rows, err := r.db.Query(ctx, query, hash, types)
 	if err != nil {
 		log.Err(err).Msgf("GetSenderAndReceiver: rows error")
@@ -536,7 +537,7 @@ func (r *txs) GetSenderAndReceiver(ctx context.Context, hash string) (*model.TxS
 			res.MessageType = messageType
 		}
 
-		if strings.EqualFold(key, "sender") {
+		if strings.EqualFold(key, "sender") || strings.EqualFold(key, "spender") {
 			res.Sender = value
 		}
 
@@ -545,7 +546,7 @@ func (r *txs) GetSenderAndReceiver(ctx context.Context, hash string) (*model.TxS
 		}
 
 		if strings.EqualFold(key, "amount") {
-			amount, denom, err := r.extractNumber(value)
+			amount, denom, err := r.ExtractNumber(value)
 			if err != nil {
 				log.Err(err).Msgf("GetSenderAndReceiver: extractNumber error")
 				res.Amount = value
@@ -558,7 +559,7 @@ func (r *txs) GetSenderAndReceiver(ctx context.Context, hash string) (*model.TxS
 	return res, nil
 }
 
-func (r *txs) extractNumber(value string) (decimal.Decimal, string, error) {
+func (r *txs) ExtractNumber(value string) (decimal.Decimal, string, error) {
 	pattern := regexp.MustCompile(`(\d+)`)
 	numberStrings := pattern.FindAllStringSubmatch(value, -1)
 	numbers := make([]int64, len(numberStrings))

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gorm.io/gorm/clause"
 	"io"
 	"net"
 	"os"
@@ -835,6 +836,12 @@ func (idxr *Indexer) doDBUpdates(wg *sync.WaitGroup,
 					config.Log.Error("unable to find sender and receiver", err)
 				}
 				transaction.SenderReceiver = res
+
+				// TODO not the best place
+				go func(tx2 models.Tx) {
+					idxr.saveAggregated(context.Background(), txRepo, tx2)
+				}(transaction)
+
 				// TODO decomposite everything
 				txsCh <- &transaction
 				if err := cache.PublishTx(context.Background(), &transaction); err != nil {
@@ -866,4 +873,61 @@ func (idxr *Indexer) doDBUpdates(wg *sync.WaitGroup,
 			config.Log.Info(fmt.Sprintf("Finished indexing %v Block Events from block %d", numEvents, eventData.blockDBWrapper.Block.Height))
 		}
 	}
+}
+
+func (idxr *Indexer) saveAggregated(ctx context.Context, txRepo repository.Txs, tx models.Tx) error {
+	events, err := txRepo.GetEvents(ctx, tx.ID)
+	if err != nil {
+		return err
+	}
+
+	var txDelegateAggregated models.TxDelegateAggregated
+
+	txDelegateAggregated.Hash = tx.Hash
+	txDelegateAggregated.Timestamp = tx.Timestamp
+	txDelegateAggregated.BlockHeight = tx.Block.Height
+
+	isMsgDelegate := false
+	for _, event := range events {
+		if event.MessageType == "/cosmos.staking.v1beta1.MsgDelegate" {
+			isMsgDelegate = true
+			txDelegateAggregated.TxType = event.MessageType
+		}
+		if !isMsgDelegate {
+			continue
+		}
+
+		if event.Key == "validator" {
+			txDelegateAggregated.Validator = event.Value
+		}
+
+		if event.Type == "coin_received" && event.Key == "amount" {
+			amount, denom, err := txRepo.ExtractNumber(event.Value)
+			if err != nil {
+				return err
+			}
+			txDelegateAggregated.Amount = amount
+			txDelegateAggregated.Denom = denom
+		}
+
+		if event.Type == "coin_spent" && event.Key == "spender" {
+			txDelegateAggregated.Sender = event.Value
+		}
+	}
+
+	if isMsgDelegate {
+		return idxr.db.Transaction(func(tx *gorm.DB) error {
+			err = tx.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "hash"}},
+				DoNothing: true,
+			}).Where("hash = ?", txDelegateAggregated.Hash).FirstOrCreate(&txDelegateAggregated).Error
+
+			if err != nil {
+				log.Err(err).Msgf("error saving aggregated %v", txDelegateAggregated)
+			}
+			return err
+		})
+	}
+
+	return nil
 }

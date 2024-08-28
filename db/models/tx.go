@@ -200,3 +200,15 @@ type MessageEventAttributeKey struct {
 	ID  uint
 	Key string `gorm:"uniqueIndex"`
 }
+
+type TxDelegateAggregated struct {
+	ID          uint
+	Hash        string `gorm:"uniqueIndex"`
+	TxType      string
+	Timestamp   time.Time
+	Validator   string
+	BlockHeight int64
+	Amount      decimal.Decimal `gorm:"type:decimal(78,0);"`
+	Denom       string
+	Sender      string
+}

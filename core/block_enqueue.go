@@ -18,8 +18,6 @@ import (
 	"gorm.io/gorm"
 )
 
-var EnqueueFunctions = map[string]func(chan int64) error{}
-
 type EnqueueData struct {
 	Height            int64
 	IndexBlockEvents  bool
