@@ -10,15 +10,11 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-
-	"github.com/rs/zerolog/log"
-
-	"github.com/shopspring/decimal"
-
-	"github.com/nodersteam/cosmos-indexer/db/models"
-
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/nodersteam/cosmos-indexer/db/models"
 	"github.com/nodersteam/cosmos-indexer/pkg/model"
+	"github.com/rs/zerolog/log"
+	"github.com/shopspring/decimal"
 )
 
 type Txs interface {
@@ -48,6 +44,9 @@ type Txs interface {
 	AccountInfo(ctx context.Context, account string) (*model.AccountInfo, error)
 	GetEvents(ctx context.Context, txID uint) ([]*model.TxEvents, error)
 	UpdateViews(ctx context.Context) error
+	ExtractNumber(value string) (decimal.Decimal, string, error)
+	DelegatesByValidator(ctx context.Context, from, to time.Time, valoperAddress string,
+		limit int64, offset int64) (data []*models.Tx, totalSum *model.Denom, all int64, err error)
 }
 
 type TxsFilter struct {
@@ -517,7 +516,7 @@ func (r *txs) GetSenderAndReceiver(ctx context.Context, hash string) (*model.TxS
 		   where txes.hash = $1
 		   and message_event_types.type = ANY($2)
 	order by messages.message_index, message_events.index, message_event_attributes.index asc`
-	types := []string{"transfer", "fungible_token_packet"}
+	types := []string{"transfer", "fungible_token_packet", "delegate", "coin_received", "coin_spent"}
 	rows, err := r.db.Query(ctx, query, hash, types)
 	if err != nil {
 		log.Err(err).Msgf("GetSenderAndReceiver: rows error")
@@ -536,7 +535,7 @@ func (r *txs) GetSenderAndReceiver(ctx context.Context, hash string) (*model.TxS
 			res.MessageType = messageType
 		}
 
-		if strings.EqualFold(key, "sender") {
+		if strings.EqualFold(key, "sender") || strings.EqualFold(key, "spender") {
 			res.Sender = value
 		}
 
@@ -545,7 +544,7 @@ func (r *txs) GetSenderAndReceiver(ctx context.Context, hash string) (*model.TxS
 		}
 
 		if strings.EqualFold(key, "amount") {
-			amount, denom, err := r.extractNumber(value)
+			amount, denom, err := r.ExtractNumber(value)
 			if err != nil {
 				log.Err(err).Msgf("GetSenderAndReceiver: extractNumber error")
 				res.Amount = value
@@ -558,7 +557,7 @@ func (r *txs) GetSenderAndReceiver(ctx context.Context, hash string) (*model.TxS
 	return res, nil
 }
 
-func (r *txs) extractNumber(value string) (decimal.Decimal, string, error) {
+func (r *txs) ExtractNumber(value string) (decimal.Decimal, string, error) {
 	pattern := regexp.MustCompile(`(\d+)`)
 	numberStrings := pattern.FindAllStringSubmatch(value, -1)
 	numbers := make([]int64, len(numberStrings))
@@ -1144,4 +1143,52 @@ group by txs.denom;`
 	acc.TotalReceived = totalReceived
 
 	return &acc, nil
+}
+
+func (r *txs) DelegatesByValidator(ctx context.Context, from, to time.Time, valoperAddress string,
+	limit int64, offset int64) (data []*models.Tx, totalSum *model.Denom, all int64, err error) {
+	query := `SELECT hash from tx_delegate_aggregateds 
+            where date(timestamp) BETWEEN date($1) and date($2) and validator=$3 
+            LIMIT $4::integer OFFSET $5::integer;`
+
+	rows, err := r.db.Query(ctx, query, from.UTC(), to.UTC(), valoperAddress, limit, offset)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var txHash string
+		if err = rows.Scan(&txHash); err != nil {
+			return nil, nil, 0, err
+		}
+
+		txByHash, _, err := r.Transactions(ctx, 100, 0, &TxsFilter{TxHash: &txHash})
+		if err != nil {
+			return nil, nil, 0, err
+		}
+
+		for _, tx := range txByHash {
+			events, err := r.GetEvents(ctx, tx.ID)
+			if err != nil {
+				log.Err(err).Msgf("can't query events for tx: %v", tx.ID)
+				continue
+			}
+			tx.Events = events
+		}
+		data = append(data, txByHash...)
+	}
+
+	queryTotal := `SELECT sum(amount), denom, count(hash) from tx_delegate_aggregateds 
+            where date(timestamp) BETWEEN date($1) and date($2) and validator=$3 GROUP BY denom;`
+
+	var totalDec decimal.Decimal
+	var totalRes model.Denom
+	row := r.db.QueryRow(ctx, queryTotal, from.UTC(), to.UTC(), valoperAddress)
+	if err = row.Scan(&totalDec, &totalRes.Denom, &all); err != nil {
+		return nil, nil, 0, err
+	}
+	totalRes.Amount = totalDec.String()
+
+	return data, &totalRes, all, nil
 }

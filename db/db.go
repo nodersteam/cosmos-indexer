@@ -208,6 +208,7 @@ func migrateTXModels(db *gorm.DB) error {
 		&models.TipAmount{},
 		&models.SignerInfo{},
 		&models.TxResponse{},
+		&models.TxDelegateAggregated{},
 	)
 }
 

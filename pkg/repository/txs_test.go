@@ -324,12 +324,12 @@ func TestTxs_ChartTransactionsVolume(t *testing.T) {
 
 func TestTxs_ExtractNumber(t *testing.T) {
 	txsRepo := NewTxs(postgresConn)
-	amount, denom, err := txsRepo.extractNumber("18000000utia")
+	amount, denom, err := txsRepo.ExtractNumber("18000000utia")
 	require.NoError(t, err)
 	require.Equal(t, denom, "utia")
 	require.Equal(t, amount.String(), "18000000")
 
-	amount, denom, err = txsRepo.extractNumber("18000000")
+	amount, denom, err = txsRepo.ExtractNumber("18000000")
 	require.NoError(t, err)
 	require.Equal(t, denom, "")
 	require.Equal(t, amount.String(), "18000000")
@@ -576,4 +576,39 @@ INSERT INTO message_event_attributes(id, message_event_id, value, index, message
 			require.Len(t, resTx, tt.response.resTotal)
 		})
 	}
+}
+
+func TestTxs_DelegatesByValidator(t *testing.T) {
+	defer func() {
+		postgresConn.Exec(context.Background(), `delete from txes`)
+		postgresConn.Exec(context.Background(), `delete from tx_delegate_aggregateds`)
+	}()
+
+	txes := `INSERT INTO txes (id, hash, code, block_id, signatures, timestamp, memo, timeout_height, extension_options, non_critical_extension_options, auth_info_id, tx_response_id)
+									VALUES
+									  (1, 'hash1', 123, 1, '{"signature1", "signature2"}', $1, 'Random memo 1', 100, '{"option1", "option2"}', '{"non_critical_option1", "non_critical_option2"}', 1, 1),
+									  (2, 'hash2', 456, 2, '{"signature3", "signature4"}', $1, 'Random memo 2', 200, '{"option3", "option4"}', '{"non_critical_option3", "non_critical_option4"}', 2, 2),
+									  (3, 'hash3', 789, 3, '{"signature5", "signature6"}', $1, 'Random memo 3', 300, '{"option5", "option6"}', '{"non_critical_option5", "non_critical_option6"}', 3, 3),
+									  (4, 'hash4', 101112, 4, '{"signature7", "signature8"}', $1, 'Random memo 4', 400, '{"option7", "option8"}', '{"non_critical_option7", "non_critical_option8"}', 4, 4)
+									  `
+	_, err := postgresConn.Exec(context.Background(), txes, time.Now().UTC())
+	require.NoError(t, err)
+
+	txDelegates := `INSERT INTO tx_delegate_aggregateds(hash, tx_type, timestamp, validator, block_height, amount, denom, sender) 
+					VALUES 
+					('hash1', 'delegate', $1, 'valoper1', 1, 100000, 'utia', 'sender1'),
+					('hash2', 'delegate', $1, 'valoper1', 1, 600, 'utia', 'sender2'),
+					('hash3', 'delegate', $1, 'valoper2', 1, 700, 'utia', 'sender2'),
+					('hash4', 'delegate', $2, 'valoper1', 1, 700, 'utia', 'sender2')`
+	_, err = postgresConn.Exec(context.Background(), txDelegates, time.Now().UTC(), time.Now().UTC().Add(-48*time.Hour))
+	require.NoError(t, err)
+
+	txsRepo := NewTxs(postgresConn)
+	txsRes, sum, all, err := txsRepo.DelegatesByValidator(context.Background(), time.Now().Add(-5*time.Hour), time.Now(),
+		"valoper1", 1, 0)
+	require.NoError(t, err)
+	require.Equal(t, all, int64(2))
+	require.Len(t, txsRes, 1)
+	require.Equal(t, sum.Amount, "100600")
+	require.Equal(t, sum.Denom, "utia")
 }

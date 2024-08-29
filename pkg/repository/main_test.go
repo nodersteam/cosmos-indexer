@@ -366,6 +366,21 @@ create unique index "messageAttributeIndex"
 `
 	migrations = append(migrations, queryMsgEventAttrs)
 
+	queryTxDelegates := `create table tx_delegate_aggregateds
+(
+    hash         text,
+    tx_type      text,
+    timestamp    timestamp with time zone,
+    validator    text,
+    block_height bigint,
+    amount       numeric(78),
+    denom        text,
+    sender       text,
+    id           bigserial
+);
+`
+	migrations = append(migrations, queryTxDelegates)
+
 	for _, query := range migrations {
 		_, err := postgresConn.Exec(ctx, query)
 		if err != nil {

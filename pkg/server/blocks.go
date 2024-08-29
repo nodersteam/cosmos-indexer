@@ -675,3 +675,27 @@ func (r *blocksServer) AccountInfo(ctx context.Context, in *pb.AccountInfoReques
 		},
 	}, nil
 }
+
+func (r *blocksServer) DelegatesByValidator(ctx context.Context, in *pb.DelegatesByValidatorRequest) (*pb.DelegatesByValidatorResponse, error) {
+	transactions, sum, total, err := r.srvTx.DelegatesByValidator(ctx,
+		in.From.AsTime(), in.To.AsTime(), in.ValoperAddress, in.Limit.Limit, in.Limit.Offset)
+	if err != nil {
+		return &pb.DelegatesByValidatorResponse{}, err
+	}
+
+	data := make([]*pb.TxByHash, 0)
+	for _, tx := range transactions {
+		transaction := tx
+		data = append(data, r.txToProto(transaction))
+	}
+
+	return &pb.DelegatesByValidatorResponse{
+		TotalSum: &pb.Denom{Amount: sum.Amount, Denom: sum.Denom},
+		Tx:       data,
+		Result: &pb.Result{
+			Limit:  in.Limit.Limit,
+			Offset: in.Limit.Offset,
+			All:    total,
+		},
+	}, nil
+}
