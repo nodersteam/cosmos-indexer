@@ -581,6 +581,7 @@ INSERT INTO message_event_attributes(id, message_event_id, value, index, message
 func TestTxs_DelegatesByValidator(t *testing.T) {
 	defer func() {
 		postgresConn.Exec(context.Background(), `delete from txes`)
+		postgresConn.Exec(context.Background(), `delete from tx_delegate_aggregateds`)
 	}()
 
 	txes := `INSERT INTO txes (id, hash, code, block_id, signatures, timestamp, memo, timeout_height, extension_options, non_critical_extension_options, auth_info_id, tx_response_id)
