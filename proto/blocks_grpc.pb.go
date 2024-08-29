@@ -49,6 +49,7 @@ const (
 	BlocksService_GetWalletsWithTx_FullMethodName          = "/blocks.BlocksService/GetWalletsWithTx"
 	BlocksService_TxCountByAccounts_FullMethodName         = "/blocks.BlocksService/TxCountByAccounts"
 	BlocksService_AccountInfo_FullMethodName               = "/blocks.BlocksService/AccountInfo"
+	BlocksService_DelegatesByValidator_FullMethodName      = "/blocks.BlocksService/DelegatesByValidator"
 )
 
 // BlocksServiceClient is the client API for BlocksService service.
@@ -85,6 +86,7 @@ type BlocksServiceClient interface {
 	GetWalletsWithTx(ctx context.Context, in *GetWalletsWithTxRequest, opts ...grpc.CallOption) (*GetWalletsWithTxResponse, error)
 	TxCountByAccounts(ctx context.Context, in *TxCountByAccountsRequest, opts ...grpc.CallOption) (*TxCountByAccountsResponse, error)
 	AccountInfo(ctx context.Context, in *AccountInfoRequest, opts ...grpc.CallOption) (*AccountInfoResponse, error)
+	DelegatesByValidator(ctx context.Context, in *DelegatesByValidatorRequest, opts ...grpc.CallOption) (*DelegatesByValidatorResponse, error)
 }
 
 type blocksServiceClient struct {
@@ -395,6 +397,16 @@ func (c *blocksServiceClient) AccountInfo(ctx context.Context, in *AccountInfoRe
 	return out, nil
 }
 
+func (c *blocksServiceClient) DelegatesByValidator(ctx context.Context, in *DelegatesByValidatorRequest, opts ...grpc.CallOption) (*DelegatesByValidatorResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DelegatesByValidatorResponse)
+	err := c.cc.Invoke(ctx, BlocksService_DelegatesByValidator_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BlocksServiceServer is the server API for BlocksService service.
 // All implementations must embed UnimplementedBlocksServiceServer
 // for forward compatibility
@@ -429,6 +441,7 @@ type BlocksServiceServer interface {
 	GetWalletsWithTx(context.Context, *GetWalletsWithTxRequest) (*GetWalletsWithTxResponse, error)
 	TxCountByAccounts(context.Context, *TxCountByAccountsRequest) (*TxCountByAccountsResponse, error)
 	AccountInfo(context.Context, *AccountInfoRequest) (*AccountInfoResponse, error)
+	DelegatesByValidator(context.Context, *DelegatesByValidatorRequest) (*DelegatesByValidatorResponse, error)
 	mustEmbedUnimplementedBlocksServiceServer()
 }
 
@@ -525,6 +538,9 @@ func (UnimplementedBlocksServiceServer) TxCountByAccounts(context.Context, *TxCo
 }
 func (UnimplementedBlocksServiceServer) AccountInfo(context.Context, *AccountInfoRequest) (*AccountInfoResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AccountInfo not implemented")
+}
+func (UnimplementedBlocksServiceServer) DelegatesByValidator(context.Context, *DelegatesByValidatorRequest) (*DelegatesByValidatorResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DelegatesByValidator not implemented")
 }
 func (UnimplementedBlocksServiceServer) mustEmbedUnimplementedBlocksServiceServer() {}
 
@@ -1079,6 +1095,24 @@ func _BlocksService_AccountInfo_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BlocksService_DelegatesByValidator_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DelegatesByValidatorRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BlocksServiceServer).DelegatesByValidator(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BlocksService_DelegatesByValidator_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BlocksServiceServer).DelegatesByValidator(ctx, req.(*DelegatesByValidatorRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BlocksService_ServiceDesc is the grpc.ServiceDesc for BlocksService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1205,6 +1239,10 @@ var BlocksService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AccountInfo",
 			Handler:    _BlocksService_AccountInfo_Handler,
+		},
+		{
+			MethodName: "DelegatesByValidator",
+			Handler:    _BlocksService_DelegatesByValidator_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

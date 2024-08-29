@@ -10,15 +10,11 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-
-	"github.com/rs/zerolog/log"
-
-	"github.com/shopspring/decimal"
-
-	"github.com/nodersteam/cosmos-indexer/db/models"
-
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/nodersteam/cosmos-indexer/db/models"
 	"github.com/nodersteam/cosmos-indexer/pkg/model"
+	"github.com/rs/zerolog/log"
+	"github.com/shopspring/decimal"
 )
 
 type Txs interface {
@@ -49,6 +45,8 @@ type Txs interface {
 	GetEvents(ctx context.Context, txID uint) ([]*model.TxEvents, error)
 	UpdateViews(ctx context.Context) error
 	ExtractNumber(value string) (decimal.Decimal, string, error)
+	DelegatesByValidator(ctx context.Context, from, to time.Time, valoperAddress string,
+		limit int64, offset int64) (data []*models.Tx, totalSum *model.Denom, all int64, err error)
 }
 
 type TxsFilter struct {
@@ -1145,4 +1143,52 @@ group by txs.denom;`
 	acc.TotalReceived = totalReceived
 
 	return &acc, nil
+}
+
+func (r *txs) DelegatesByValidator(ctx context.Context, from, to time.Time, valoperAddress string,
+	limit int64, offset int64) (data []*models.Tx, totalSum *model.Denom, all int64, err error) {
+	query := `SELECT hash from tx_delegate_aggregateds 
+            where date(timestamp) BETWEEN date($1) and date($2) and validator=$3 
+            LIMIT $4::integer OFFSET $5::integer;`
+
+	rows, err := r.db.Query(ctx, query, from.UTC(), to.UTC(), valoperAddress, limit, offset)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var txHash string
+		if err = rows.Scan(&txHash); err != nil {
+			return nil, nil, 0, err
+		}
+
+		txByHash, _, err := r.Transactions(ctx, 100, 0, &TxsFilter{TxHash: &txHash})
+		if err != nil {
+			return nil, nil, 0, err
+		}
+
+		for _, tx := range txByHash {
+			events, err := r.GetEvents(ctx, tx.ID)
+			if err != nil {
+				log.Err(err).Msgf("can't query events for tx: %v", tx.ID)
+				continue
+			}
+			tx.Events = events
+		}
+		data = append(data, txByHash...)
+	}
+
+	queryTotal := `SELECT sum(amount), denom, count(hash) from tx_delegate_aggregateds 
+            where date(timestamp) BETWEEN date($1) and date($2) and validator=$3 GROUP BY denom;`
+
+	var totalDec decimal.Decimal
+	var totalRes model.Denom
+	row := r.db.QueryRow(ctx, queryTotal, from.UTC(), to.UTC(), valoperAddress)
+	if err = row.Scan(&totalDec, &totalRes.Denom, &all); err != nil {
+		return nil, nil, 0, err
+	}
+	totalRes.Amount = totalDec.String()
+
+	return data, &totalRes, all, nil
 }

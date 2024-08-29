@@ -37,6 +37,7 @@ service BlocksService {
   rpc GetWalletsWithTx(GetWalletsWithTxRequest) returns (GetWalletsWithTxResponse) {}
   rpc TxCountByAccounts(TxCountByAccountsRequest) returns (TxCountByAccountsResponse) {}
   rpc AccountInfo(AccountInfoRequest) returns (AccountInfoResponse) {}
+  rpc DelegatesByValidator(DelegatesByValidatorRequest) returns (DelegatesByValidatorResponse) {}
 }
 
 
@@ -474,4 +475,17 @@ message AccountInfoResponse{
   google.protobuf.Timestamp first_tx_time = 2;
   Denom total_spent = 3;
   Denom total_received = 4;
+}
+
+message DelegatesByValidatorRequest{
+  google.protobuf.Timestamp from = 1;
+  google.protobuf.Timestamp to = 2;
+  string valoperAddress = 3;
+  Limit limit = 4;
+}
+
+message DelegatesByValidatorResponse{
+  Denom totalSum = 1;
+  repeated TxByHash tx = 2;
+  Result result = 3;
 }

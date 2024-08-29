@@ -39,6 +39,8 @@ type Txs interface {
 	GetWalletsWithTx(ctx context.Context, limit int64, offset int64) ([]*model.WalletWithTxs, int64, error)
 	TxCountByAccounts(ctx context.Context, accounts []string) ([]*model.WalletWithTxs, error)
 	AccountInfo(ctx context.Context, account string) (*model.AccountInfo, error)
+	DelegatesByValidator(ctx context.Context, from, to time.Time, valoperAddress string,
+		limit int64, offset int64) (data []*models.Tx, totalSum *model.Denom, all int64, err error)
 }
 
 type txs struct {
@@ -171,4 +173,9 @@ func (s *txs) TxCountByAccounts(ctx context.Context, accounts []string) ([]*mode
 
 func (s *txs) AccountInfo(ctx context.Context, account string) (*model.AccountInfo, error) {
 	return s.txRepo.AccountInfo(ctx, account)
+}
+
+func (s *txs) DelegatesByValidator(ctx context.Context, from, to time.Time, valoperAddress string,
+	limit int64, offset int64) (data []*models.Tx, totalSum *model.Denom, all int64, err error) {
+	return s.txRepo.DelegatesByValidator(ctx, from, to, valoperAddress, limit, offset)
 }
