@@ -22,7 +22,7 @@ type searchTxPublisher struct {
 
 func NewSearchTxConsumer(rdb *redis.Client,
 	blocksTopic string, repo repository.Search,
-) *searchTxPublisher {
+) SearchTxConsumer {
 	return &searchTxPublisher{rdb: rdb, repo: repo, topic: blocksTopic}
 }
 
@@ -67,7 +67,10 @@ func (s *searchTxPublisher) Consume(ctx context.Context) error {
 			log.Debug().Msgf("breaking the worker loop.")
 			return nil
 		case newRecord := <-innerReceiver:
-			s.repo.AddHash(ctx, newRecord.Hash, "transaction", newRecord.Block.Height)
+			err := s.repo.AddHash(ctx, newRecord.Hash, "transaction", newRecord.Block.Height)
+			if err != nil {
+				log.Err(err).Msgf("error adding hash")
+			}
 		}
 	}
 }

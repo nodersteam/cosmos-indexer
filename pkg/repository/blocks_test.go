@@ -68,18 +68,21 @@ VALUES
 				}
 
 				_, err := postgresConn.Exec(context.Background(), sampleBlocks, blockTimes...)
-				if err != nil {
-					panic(err)
-				}
-				postgresConn.Exec(context.Background(), sampleTxes, tm)
-				postgresConn.Exec(context.Background(), sampleFees)
+				require.NoError(t, err)
+				_, err = postgresConn.Exec(context.Background(), sampleTxes, tm)
+				require.NoError(t, err)
+				_, err = postgresConn.Exec(context.Background(), sampleFees)
+				require.NoError(t, err)
 			},
 			time.Now(),
 			expected{blockHeight: 1004, count24H: 5, totalFees: decimal.NewFromInt(11), blockTime: 1},
 			func() {
-				postgresConn.Exec(context.Background(), `delete from blocks`)
-				postgresConn.Exec(context.Background(), `delete from txes`)
-				postgresConn.Exec(context.Background(), `delete from fees`)
+				_, err := postgresConn.Exec(context.Background(), `delete from blocks`)
+				require.NoError(t, err)
+				_, err = postgresConn.Exec(context.Background(), `delete from txes`)
+				require.NoError(t, err)
+				_, err = postgresConn.Exec(context.Background(), `delete from fees`)
+				require.NoError(t, err)
 			},
 		},
 	}
@@ -142,9 +145,12 @@ VALUES
 	require.NoError(t, err)
 
 	defer func() {
-		postgresConn.Exec(context.Background(), `delete from blocks`)
-		postgresConn.Exec(context.Background(), `delete from txes`)
-		postgresConn.Exec(context.Background(), `delete from fees`)
+		_, err := postgresConn.Exec(context.Background(), `delete from blocks`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from txes`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from fees`)
+		require.NoError(t, err)
 	}()
 
 	tests := []struct {
@@ -197,8 +203,10 @@ func TestBlocks_BlockSignatures(t *testing.T) {
 	}
 
 	defer func() {
-		postgresConn.Exec(context.Background(), `delete from blocks`)
-		postgresConn.Exec(context.Background(), `delete from block_signatures`)
+		_, err := postgresConn.Exec(context.Background(), `delete from blocks`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from block_signatures`)
+		require.NoError(t, err)
 	}()
 
 	sampleBlocks := `INSERT INTO blocks (id, time_stamp, height, chain_id, proposer_cons_address_id, tx_indexed, block_events_indexed, block_hash) 
@@ -260,8 +268,10 @@ func TestBlocks_BlockUptime(t *testing.T) {
 	}
 
 	defer func() {
-		postgresConn.Exec(context.Background(), `delete from blocks`)
-		postgresConn.Exec(context.Background(), `delete from block_signatures`)
+		_, err := postgresConn.Exec(context.Background(), `delete from blocks`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from block_signatures`)
+		require.NoError(t, err)
 	}()
 
 	sampleBlocks := `INSERT INTO blocks (id, time_stamp, height, chain_id, proposer_cons_address_id, tx_indexed, block_events_indexed, block_hash) 

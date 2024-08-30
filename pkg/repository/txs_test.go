@@ -47,34 +47,40 @@ func TestTransactionsPerPeriod(t *testing.T) {
 		{
 			"success",
 			func() {
-				postgresConn.Exec(context.Background(), sampleData, time.Now().UTC().Add(-1*time.Hour))
+				_, err := postgresConn.Exec(context.Background(), sampleData, time.Now().UTC().Add(-1*time.Hour))
+				require.NoError(t, err)
 			},
 			time.Now().UTC(),
 			expected{allTx: 10, all24H: 10, all30D: 10, err: nil},
 			func() {
-				postgresConn.Exec(context.Background(), `delete from txes`)
+				_, err := postgresConn.Exec(context.Background(), `delete from txes`)
+				require.NoError(t, err)
 			},
 		},
 		{
 			"success_no24h",
 			func() {
-				postgresConn.Exec(context.Background(), sampleData, time.Now().UTC().Add(-25*time.Hour))
+				_, err := postgresConn.Exec(context.Background(), sampleData, time.Now().UTC().Add(-25*time.Hour))
+				require.NoError(t, err)
 			},
 			time.Now().UTC(),
 			expected{allTx: 10, all24H: 0, all30D: 10, err: nil},
 			func() {
-				postgresConn.Exec(context.Background(), `delete from txes`)
+				_, err := postgresConn.Exec(context.Background(), `delete from txes`)
+				require.NoError(t, err)
 			},
 		},
 		{
 			"success_no24h_no30d",
 			func() {
-				postgresConn.Exec(context.Background(), sampleData, time.Now().UTC().Add(-24*31*time.Hour))
+				_, err := postgresConn.Exec(context.Background(), sampleData, time.Now().UTC().Add(-24*31*time.Hour))
+				require.NoError(t, err)
 			},
 			time.Now().UTC(),
 			expected{allTx: 10, all24H: 0, all30D: 0, err: nil},
 			func() {
-				postgresConn.Exec(context.Background(), `delete from txes`)
+				_, err := postgresConn.Exec(context.Background(), `delete from txes`)
+				require.NoError(t, err)
 			},
 		},
 	}
@@ -130,8 +136,10 @@ func TestTxs_TransactionRawLog(t *testing.T) {
 			expected{rawLog: "raw_log_1", err: nil},
 			params{"hash1"},
 			func() {
-				postgresConn.Exec(ctx, txResponses)
-				postgresConn.Exec(ctx, txes, time.Now().UTC())
+				_, err := postgresConn.Exec(ctx, txResponses)
+				require.NoError(t, err)
+				_, err = postgresConn.Exec(ctx, txes, time.Now().UTC())
+				require.NoError(t, err)
 			},
 			func() {
 				postgresConn.Exec(context.Background(), `delete from txes`)
