@@ -265,12 +265,12 @@ func (r *blocks) calculateMedian(times []int64) float64 {
 	if n%2 == 1 {
 		// If odd, return the middle element
 		return float64(times[n/2])
-	} else {
-		// If even, return the average of the two middle elements
-		mid1 := times[n/2-1]
-		mid2 := times[n/2]
-		return float64(mid1+mid2) / 2.0
 	}
+
+	// If even, return the average of the two middle elements
+	mid1 := times[n/2-1]
+	mid2 := times[n/2]
+	return float64(mid1+mid2) / 2.0
 }
 
 func (r *blocks) blocksCount(ctx context.Context, from, to time.Time) (int64, error) {

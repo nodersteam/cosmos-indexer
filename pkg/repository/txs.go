@@ -58,7 +58,7 @@ type txs struct {
 	db *pgxpool.Pool
 }
 
-func NewTxs(db *pgxpool.Pool) *txs {
+func NewTxs(db *pgxpool.Pool) Txs {
 	return &txs{db: db}
 }
 

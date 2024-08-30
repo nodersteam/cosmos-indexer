@@ -22,7 +22,7 @@ type searchBlocks struct {
 
 func NewSearchBlocksConsumer(rdb *redis.Client,
 	blocksTopic string, repo repository.Search,
-) *searchBlocks {
+) SearchBlocksConsumer {
 	return &searchBlocks{rdb: rdb, repo: repo, topic: blocksTopic}
 }
 

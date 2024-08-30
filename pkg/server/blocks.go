@@ -28,7 +28,7 @@ type blocksServer struct {
 	cache repository.Cache
 }
 
-func NewBlocksServer(srv service.Blocks, srvTx service.Txs, srvS service.Search, cache repository.Cache) *blocksServer {
+func NewBlocksServer(srv service.Blocks, srvTx service.Txs, srvS service.Search, cache repository.Cache) *blocksServer { //nolint:unexported-return
 	return &blocksServer{srv: srv, srvTx: srvTx, srvS: srvS, cache: cache}
 }
 

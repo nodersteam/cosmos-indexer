@@ -26,7 +26,7 @@ type search struct {
 	pool *mongo.Database
 }
 
-func NewSearch(pool *mongo.Database) *search {
+func NewSearch(pool *mongo.Database) Search {
 	return &search{pool: pool}
 }
 
