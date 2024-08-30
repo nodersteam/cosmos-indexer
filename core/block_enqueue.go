@@ -36,7 +36,6 @@ func GenerateBlockFileEnqueueFunction(cfg config.IndexConfig,
 		}
 		var blocksToIndex []uint64
 		err = json.Unmarshal(plan, &blocksToIndex)
-
 		if err != nil {
 			errString := err.Error()
 

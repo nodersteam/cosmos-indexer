@@ -1,13 +1,8 @@
 package core
 
 import (
-	"strconv"
-
-	v1beta12 "cosmossdk.io/api/cosmos/base/v1beta1"
 	txv1beta1 "cosmossdk.io/api/cosmos/tx/v1beta1"
-	"cosmossdk.io/math"
 	"github.com/cosmos/cosmos-sdk/codec/types"
-	github_com_cosmos_cosmos_sdk_types "github.com/cosmos/cosmos-sdk/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/tx"
 	probeClient "github.com/nodersteam/probe/client"
@@ -34,6 +29,10 @@ func InAppTxDecoder(cdc probeClient.Codec) sdk.TxDecoder {
 		body := tx.TxBody{}
 		var bodyV1 txv1beta1.TxBody
 		err = proto.Unmarshal(raw.BodyBytes, &bodyV1)
+		if err != nil {
+			log.Err(err).Msgf("failed to unmarshal tx body bytes")
+			return nil, err
+		}
 		for _, mm := range bodyV1.Messages {
 			body.Messages = append(body.Messages, &types.Any{TypeUrl: mm.TypeUrl, Value: mm.Value})
 		}
@@ -77,36 +76,4 @@ func InAppTxDecoder(cdc probeClient.Codec) sdk.TxDecoder {
 
 		return theTx, nil
 	}
-}
-
-func fromV1Amount(v1 []*v1beta12.Coin) github_com_cosmos_cosmos_sdk_types.Coins {
-	res := make([]github_com_cosmos_cosmos_sdk_types.Coin, 0, len(v1))
-	for _, v := range v1 {
-		am, err := strconv.Atoi(v.Amount)
-		if err != nil {
-			log.Err(err).Msgf("unable to convert amount %s to int", v.Amount)
-			continue
-		}
-
-		amount := math.NewIntFromUint64(uint64(am))
-		res = append(res, github_com_cosmos_cosmos_sdk_types.Coin{
-			Denom:  v.Denom,
-			Amount: amount,
-		})
-	}
-	return res
-}
-
-func fromV1SignerInfos(v1 []*txv1beta1.SignerInfo) []*tx.SignerInfo {
-	res := make([]*tx.SignerInfo, 0, len(v1))
-	for _, v := range v1 {
-		if v.PublicKey == nil {
-			continue
-		}
-		res = append(res, &tx.SignerInfo{
-			PublicKey: &types.Any{TypeUrl: v.PublicKey.TypeUrl, Value: v.PublicKey.Value},
-			Sequence:  v.Sequence,
-		})
-	}
-	return res
 }

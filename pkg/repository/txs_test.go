@@ -15,6 +15,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const txes = `INSERT INTO txes (id, hash, code, block_id, signatures, timestamp, memo, timeout_height, extension_options, non_critical_extension_options, auth_info_id, tx_response_id)
+									VALUES
+									  (1, 'hash1', 123, 1, '{"signature1", "signature2"}', $1, 'Random memo 1', 100, '{"option1", "option2"}', '{"non_critical_option1", "non_critical_option2"}', 1, 1),
+									  (2, 'hash2', 456, 2, '{"signature3", "signature4"}', $2, 'Random memo 2', 200, '{"option3", "option4"}', '{"non_critical_option3", "non_critical_option4"}', 2, 2),
+									  (3, 'hash3', 789, 3, '{"signature5", "signature6"}', $3, 'Random memo 3', 300, '{"option5", "option6"}', '{"non_critical_option5", "non_critical_option6"}', 3, 3),
+									  (4, 'hash4', 101112, 4, '{"signature7", "signature8"}', $4, 'Random memo 4', 400, '{"option7", "option8"}', '{"non_critical_option7", "non_critical_option8"}', 4, 4),
+									  (5, 'hash5', 101112, 5, '{"signature7", "signature8"}', $4, 'Random memo 5', 600, '{"option7", "option8"}', '{"non_critical_option7", "non_critical_option8"}', 4, 4),
+									  (6, 'hash6', 101112, 5, '{"signature7", "signature8"}', $5, 'Random memo 5', 600, '{"option7", "option8"}', '{"non_critical_option7", "non_critical_option8"}', 4, 4)
+									  `
+
 func TestTransactionsPerPeriod(t *testing.T) {
 	type expected struct {
 		allTx  int64
@@ -198,14 +208,15 @@ func TestTxs_TransactionSigners(t *testing.T) {
 	_, err = postgresConn.Exec(context.Background(), addresses)
 	require.NoError(t, err)
 
-	txes := `INSERT INTO txes (id, hash, code, block_id, signatures, timestamp, memo, timeout_height, extension_options, non_critical_extension_options, auth_info_id, tx_response_id)
+	//nolint:goconst
+	demoTransactions := `INSERT INTO txes (id, hash, code, block_id, signatures, timestamp, memo, timeout_height, extension_options, non_critical_extension_options, auth_info_id, tx_response_id)
 									VALUES
 									  (1, 'hash1', 123, 1, '{"signature1", "signature2"}', $1, 'Random memo 1', 100, '{"option1", "option2"}', '{"non_critical_option1", "non_critical_option2"}', 1, 1),
 									  (2, 'hash2', 456, 2, '{"signature3", "signature4"}', $1, 'Random memo 2', 200, '{"option3", "option4"}', '{"non_critical_option3", "non_critical_option4"}', 2, 2),
 									  (3, 'hash3', 789, 3, '{"signature5", "signature6"}', $1, 'Random memo 3', 300, '{"option5", "option6"}', '{"non_critical_option5", "non_critical_option6"}', 3, 3),
 									  (4, 'hash4', 101112, 4, '{"signature7", "signature8"}', $1, 'Random memo 4', 400, '{"option7", "option8"}', '{"non_critical_option7", "non_critical_option8"}', 4, 4)
 									  `
-	_, err = postgresConn.Exec(context.Background(), txes, time.Now().UTC())
+	_, err = postgresConn.Exec(context.Background(), demoTransactions, time.Now().UTC())
 	require.NoError(t, err)
 
 	defer func() {
@@ -260,15 +271,6 @@ func TestTxs_ChartTransactionsByHour(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	txes := `INSERT INTO txes (id, hash, code, block_id, signatures, timestamp, memo, timeout_height, extension_options, non_critical_extension_options, auth_info_id, tx_response_id)
-									VALUES
-									  (1, 'hash1', 123, 1, '{"signature1", "signature2"}', $1, 'Random memo 1', 100, '{"option1", "option2"}', '{"non_critical_option1", "non_critical_option2"}', 1, 1),
-									  (2, 'hash2', 456, 2, '{"signature3", "signature4"}', $2, 'Random memo 2', 200, '{"option3", "option4"}', '{"non_critical_option3", "non_critical_option4"}', 2, 2),
-									  (3, 'hash3', 789, 3, '{"signature5", "signature6"}', $3, 'Random memo 3', 300, '{"option5", "option6"}', '{"non_critical_option5", "non_critical_option6"}', 3, 3),
-									  (4, 'hash4', 101112, 4, '{"signature7", "signature8"}', $4, 'Random memo 4', 400, '{"option7", "option8"}', '{"non_critical_option7", "non_critical_option8"}', 4, 4),
-									  (5, 'hash5', 101112, 5, '{"signature7", "signature8"}', $4, 'Random memo 5', 600, '{"option7", "option8"}', '{"non_critical_option7", "non_critical_option8"}', 4, 4),
-									  (6, 'hash6', 101112, 5, '{"signature7", "signature8"}', $5, 'Random memo 5', 600, '{"option7", "option8"}', '{"non_critical_option7", "non_critical_option8"}', 4, 4)
-									  `
 	initTime := time.Now().UTC()
 	_, err := postgresConn.Exec(context.Background(), txes,
 		initTime,

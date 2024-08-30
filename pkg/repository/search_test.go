@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
+
+	"github.com/stretchr/testify/require"
 
 	testdb "github.com/nodersteam/cosmos-indexer/pkg/repository/test_db"
 	"github.com/stretchr/testify/suite"
@@ -13,9 +14,8 @@ import (
 
 type SearchRepositorySuite struct {
 	suite.Suite
-	repository *search
+	repository Search
 	db         *mongo.Database
-	now        time.Time
 	cleanups   []func()
 }
 
@@ -79,6 +79,7 @@ func (suite *SearchRepositorySuite) TestCreateBlock() {
 	suite.Equal(result[0].Type, "transaction")
 
 	result, err = suite.repository.HashByText(ctx, "123")
+	require.NoError(suite.T(), err)
 	suite.Assert().Len(result, 0)
 
 	// multiple results

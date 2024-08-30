@@ -263,7 +263,7 @@ VALUES
 
 func TestBlocks_BlockUptime(t *testing.T) {
 	type expected struct {
-		upTime float64
+		upTime float32
 		err    error
 	}
 

@@ -35,7 +35,7 @@ func (s *cacheConsumer) RunBlocks(ctx context.Context) error {
 		case <-ctx.Done():
 			log.Info().Msgf("breaking the worker loop.")
 			break
-		case newBlock, _ := <-s.blocksCh:
+		case newBlock := <-s.blocksCh:
 			err := s.blocks.AddBlock(ctx, newBlock)
 			if err != nil {
 				log.Err(err).Msgf("Error publishing block")
@@ -51,7 +51,7 @@ func (s *cacheConsumer) RunTransactions(ctx context.Context) error {
 		case <-ctx.Done():
 			log.Info().Msgf("breaking the worker loop.")
 			break
-		case newTx, _ := <-s.txCh:
+		case newTx := <-s.txCh:
 			err := s.txs.AddTransaction(ctx, newTx)
 			if err != nil {
 				log.Err(err).Msgf("Error publishing block")

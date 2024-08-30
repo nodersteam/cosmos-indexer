@@ -128,16 +128,6 @@ func (r *blocks) GetBlockInfoByHash(ctx context.Context, hash string) (*model.Bl
 	return o, nil
 }
 
-func (r *blocks) totalBlockFeesByBlockID(ctx context.Context, blockID int64) (decimal.Decimal, error) {
-	queryTotalFees := `select COALESCE(sum(amount),0) from fees where tx_id IN (select id from txes where block_id=$1)`
-	var totalFees decimal.Decimal
-	err := r.db.QueryRow(ctx, queryTotalFees, blockID).Scan(&totalFees)
-	if err != nil {
-		return decimal.NewFromInt(0), fmt.Errorf("exec total fees %v", err)
-	}
-	return totalFees, nil
-}
-
 func (r *blocks) countAllTxs(ctx context.Context, blockID int64) (int64, error) {
 	queryAll := `select count(*) from txes where txes.block_id = $1`
 	row := r.db.QueryRow(ctx, queryAll, blockID)

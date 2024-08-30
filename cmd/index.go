@@ -51,7 +51,6 @@ type Indexer struct {
 	cfg                                 *config.IndexConfig
 	db                                  *gorm.DB
 	cl                                  *client.ChainClient
-	blockEnqueueFunction                func(chan *core.EnqueueData) error
 	blockEventFilterRegistries          blockEventFilterRegistries
 	messageTypeFilters                  []filter.MessageTypeFilter
 	customBeginBlockEventParserRegistry map[string][]parsers.BlockEventParser // Used for associating parsers to block event types in BeginBlock events
@@ -144,7 +143,6 @@ func setupIndex(cmd *cobra.Command, args []string) error {
 			indexer.blockEventFilterRegistries.endBlockEventFilterRegistry.RollingWindowEventFilters,
 			indexer.messageTypeFilters,
 			err = config.ParseJSONFilterConfig(b)
-
 		if err != nil {
 			config.Log.Fatal("Failed to parse block event filter config", err)
 		}
@@ -373,13 +371,35 @@ func runIndexer(ctx context.Context, idxr *Indexer, runSrv bool, startBlock, end
 	defer close(chTxs)
 
 	cacheConsumer := consumer.NewCacheConsumer(cache, chBlocks, chTxs, cache)
-	go cacheConsumer.RunBlocks(ctx)
-	go cacheConsumer.RunTransactions(ctx)
+	go func(ctx context.Context) {
+		err := cacheConsumer.RunBlocks(ctx)
+		if err != nil {
+			log.Err(err).Msg("Error running cache: RunBlocks")
+		}
+	}(ctx)
+
+	go func(ctx context.Context) {
+		err := cacheConsumer.RunTransactions(ctx)
+		if err != nil {
+			log.Err(err).Msg("Error running cache: RunTransactions")
+		}
+	}(ctx)
 
 	aggregatesConsumer := consumer.NewAggregatesConsumer(cache, repoBlocks, repoTxs)
-	go aggregatesConsumer.Consume(ctx)
+	go func(ctx context.Context) {
+		err := aggregatesConsumer.Consume(ctx)
+		if err != nil {
+			log.Err(err).Msg("Error running aggregates: Consume")
+		}
+	}(ctx)
+
 	if runSrv {
-		go aggregatesConsumer.RefreshMaterializedViews(ctx)
+		go func(ctx context.Context) {
+			err := aggregatesConsumer.RefreshMaterializedViews(ctx)
+			if err != nil {
+				log.Err(err).Msgf("Error refreshing materialized views")
+			}
+		}(ctx)
 	}
 
 	wg.Add(1)
@@ -408,7 +428,12 @@ func runIndexer(ctx context.Context, idxr *Indexer, runSrv bool, startBlock, end
 
 	if runSrv {
 		blSearchConsumer := consumer.NewSearchBlocksConsumer(rdb, "pub/blocks", searchRepo) // TODO
-		go blSearchConsumer.Consume(ctx)
+		go func(ctx context.Context) {
+			err := blSearchConsumer.Consume(ctx)
+			if err != nil {
+				log.Err(err).Msgf("error on tx search consumer closing")
+			}
+		}(ctx)
 
 		// migration
 		go func() {
@@ -552,7 +577,10 @@ func mongoDBMigrate(ctx context.Context,
 		Description: "migrate existing hashes with block height",
 		Up: func(ctx context.Context, db *mongo.Database) error {
 			config.Log.Info("starting txs v3 migration")
-			db.Collection("search").Drop(ctx)
+			err := db.Collection("search").Drop(ctx)
+			if err != nil {
+				log.Err(err).Msgf("Failed to drop index, continue")
+			}
 
 			rows, err := pg.Query(ctx, `select distinct hash from txes`)
 			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -836,8 +864,11 @@ func (idxr *Indexer) doDBUpdates(wg *sync.WaitGroup,
 				transaction.SenderReceiver = res
 
 				// TODO not the best place
-				go func(tx2 models.Tx) {
-					idxr.saveAggregated(context.Background(), txRepo, tx2)
+				go func(tx models.Tx) {
+					errAggr := idxr.saveAggregated(context.Background(), txRepo, tx)
+					if errAggr != nil {
+						log.Err(errAggr).Msgf("Failed to save aggregated tx")
+					}
 				}(transaction)
 
 				// TODO decomposite everything
@@ -863,7 +894,6 @@ func (idxr *Indexer) doDBUpdates(wg *sync.WaitGroup,
 			}
 
 			err = dbTypes.IndexCustomBlockEvents(*idxr.cfg, idxr.db, indexedDataset, identifierLoggingString, idxr.customBeginBlockParserTrackers, idxr.customEndBlockParserTrackers)
-
 			if err != nil {
 				config.Log.Fatal(fmt.Sprintf("Error indexing custom block events for %s.", identifierLoggingString), err)
 			}
@@ -923,7 +953,6 @@ func (idxr *Indexer) saveAggregated(ctx context.Context, txRepo repository.Txs, 
 				Columns:   []clause.Column{{Name: "hash"}},
 				DoNothing: true,
 			}).Where("hash = ?", txDelegateAggregated.Hash).FirstOrCreate(&txDelegateAggregated).Error
-
 			if err != nil {
 				log.Err(err).Msgf("error saving aggregated %v", txDelegateAggregated)
 			}

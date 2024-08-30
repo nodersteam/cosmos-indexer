@@ -129,10 +129,6 @@ func (a *parser) ProcessRPCBlockByHeightTXs(messageTypeFilters []filter.MessageT
 				}
 				currLogMsgs = append(currLogMsgs, currTxLog)
 			}
-			// TODO understand why it's not working here
-			//else {
-			//	return nil, blockTime, fmt.Errorf("tx message could not be processed")
-			//}
 		}
 
 		txBody.Messages = currMessages

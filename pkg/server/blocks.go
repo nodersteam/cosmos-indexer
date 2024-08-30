@@ -28,7 +28,7 @@ type blocksServer struct {
 	cache repository.Cache
 }
 
-func NewBlocksServer(srv service.Blocks, srvTx service.Txs, srvS service.Search, cache repository.Cache) *blocksServer { //nolint:unexported-return
+func NewBlocksServer(srv service.Blocks, srvTx service.Txs, srvS service.Search, cache repository.Cache) *blocksServer { //nolint: revive
 	return &blocksServer{srv: srv, srvTx: srvTx, srvS: srvS, cache: cache}
 }
 
@@ -418,7 +418,7 @@ func (r *blocksServer) SearchHashByText(ctx context.Context, in *pb.SearchHashBy
 	if len(searchStr) > 3 {
 		height, err := strconv.Atoi(searchStr)
 		if err == nil {
-			res, err = r.srvS.SearchByBlock(ctx, int64(height))
+			res, _ = r.srvS.SearchByBlock(ctx, int64(height))
 			for _, s := range res {
 				data = append(data, &pb.SearchResults{
 					Hash:        s.TxHash,
