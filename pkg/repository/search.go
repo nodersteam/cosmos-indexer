@@ -3,8 +3,9 @@ package repository
 import (
 	"context"
 	"fmt"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"regexp"
+
+	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/nodersteam/cosmos-indexer/pkg/model"
 	"github.com/rs/zerolog/log"
@@ -25,7 +26,7 @@ type search struct {
 	pool *mongo.Database
 }
 
-func NewSearch(pool *mongo.Database) *search {
+func NewSearch(pool *mongo.Database) Search {
 	return &search{pool: pool}
 }
 
@@ -33,7 +34,8 @@ func (a *search) AddHash(ctx context.Context, hash string, hashType string, bloc
 	searchResult := model.SearchResult{TxHash: hash, Type: hashType, BlockHeight: fmt.Sprintf("%d", blockHeight)}
 
 	filter := bson.D{primitive.E{Key: "tx_hash", Value: hash}, primitive.E{Key: "type", Value: hashType}}
-	update := bson.D{{"$set",
+	update := bson.D{{ //nolint: govet
+		"$set",
 		searchResult,
 	}}
 
@@ -50,7 +52,7 @@ func (a *search) AddHash(ctx context.Context, hash string, hashType string, bloc
 }
 
 func (a *search) HashByText(ctx context.Context, text string) ([]model.SearchResult, error) {
-	filter := bson.D{{"tx_hash", primitive.Regex{Pattern: regexp.QuoteMeta(text), Options: "i"}}}
+	filter := bson.D{{"tx_hash", primitive.Regex{Pattern: regexp.QuoteMeta(text), Options: "i"}}} //nolint: govet
 	cursor, err := a.pool.Collection(searchCollection).Find(ctx, filter)
 	if err != nil {
 		return nil, err
@@ -64,7 +66,7 @@ func (a *search) HashByText(ctx context.Context, text string) ([]model.SearchRes
 
 func (a *search) BlockByHeight(ctx context.Context, blockHeight int64) ([]model.SearchResult, error) {
 	filter := bson.D{
-		{"block_height", primitive.Regex{Pattern: fmt.Sprintf("%d", blockHeight), Options: "i"}},
+		{"block_height", primitive.Regex{Pattern: fmt.Sprintf("%d", blockHeight), Options: "i"}}, //nolint: govet
 	}
 	cursor, err := a.pool.Collection(searchCollection).Find(ctx, filter)
 	if err != nil {

@@ -4,15 +4,26 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"testing"
+	"time"
+
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
-	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
+
+const txes = `INSERT INTO txes (id, hash, code, block_id, signatures, timestamp, memo, timeout_height, extension_options, non_critical_extension_options, auth_info_id, tx_response_id)
+									VALUES
+									  (1, 'hash1', 123, 1, '{"signature1", "signature2"}', $1, 'Random memo 1', 100, '{"option1", "option2"}', '{"non_critical_option1", "non_critical_option2"}', 1, 1),
+									  (2, 'hash2', 456, 2, '{"signature3", "signature4"}', $2, 'Random memo 2', 200, '{"option3", "option4"}', '{"non_critical_option3", "non_critical_option4"}', 2, 2),
+									  (3, 'hash3', 789, 3, '{"signature5", "signature6"}', $3, 'Random memo 3', 300, '{"option5", "option6"}', '{"non_critical_option5", "non_critical_option6"}', 3, 3),
+									  (4, 'hash4', 101112, 4, '{"signature7", "signature8"}', $4, 'Random memo 4', 400, '{"option7", "option8"}', '{"non_critical_option7", "non_critical_option8"}', 4, 4),
+									  (5, 'hash5', 101112, 5, '{"signature7", "signature8"}', $4, 'Random memo 5', 600, '{"option7", "option8"}', '{"non_critical_option7", "non_critical_option8"}', 4, 4),
+									  (6, 'hash6', 101112, 5, '{"signature7", "signature8"}', $5, 'Random memo 5', 600, '{"option7", "option8"}', '{"non_critical_option7", "non_critical_option8"}', 4, 4)
+									  `
 
 func TestTransactionsPerPeriod(t *testing.T) {
 	type expected struct {
@@ -43,34 +54,43 @@ func TestTransactionsPerPeriod(t *testing.T) {
 		result expected
 		after  func()
 	}{
-		{"success",
+		{
+			"success",
 			func() {
-				postgresConn.Exec(context.Background(), sampleData, time.Now().UTC().Add(-1*time.Hour))
+				_, err := postgresConn.Exec(context.Background(), sampleData, time.Now().UTC().Add(-1*time.Hour))
+				require.NoError(t, err)
 			},
 			time.Now().UTC(),
 			expected{allTx: 10, all24H: 10, all30D: 10, err: nil},
 			func() {
-				postgresConn.Exec(context.Background(), `delete from txes`)
+				_, err := postgresConn.Exec(context.Background(), `delete from txes`)
+				require.NoError(t, err)
 			},
 		},
-		{"success_no24h",
+		{
+			"success_no24h",
 			func() {
-				postgresConn.Exec(context.Background(), sampleData, time.Now().UTC().Add(-25*time.Hour))
+				_, err := postgresConn.Exec(context.Background(), sampleData, time.Now().UTC().Add(-25*time.Hour))
+				require.NoError(t, err)
 			},
 			time.Now().UTC(),
 			expected{allTx: 10, all24H: 0, all30D: 10, err: nil},
 			func() {
-				postgresConn.Exec(context.Background(), `delete from txes`)
+				_, err := postgresConn.Exec(context.Background(), `delete from txes`)
+				require.NoError(t, err)
 			},
 		},
-		{"success_no24h_no30d",
+		{
+			"success_no24h_no30d",
 			func() {
-				postgresConn.Exec(context.Background(), sampleData, time.Now().UTC().Add(-24*31*time.Hour))
+				_, err := postgresConn.Exec(context.Background(), sampleData, time.Now().UTC().Add(-24*31*time.Hour))
+				require.NoError(t, err)
 			},
 			time.Now().UTC(),
 			expected{allTx: 10, all24H: 0, all30D: 0, err: nil},
 			func() {
-				postgresConn.Exec(context.Background(), `delete from txes`)
+				_, err := postgresConn.Exec(context.Background(), `delete from txes`)
+				require.NoError(t, err)
 			},
 		},
 	}
@@ -126,12 +146,16 @@ func TestTxs_TransactionRawLog(t *testing.T) {
 			expected{rawLog: "raw_log_1", err: nil},
 			params{"hash1"},
 			func() {
-				postgresConn.Exec(ctx, txResponses)
-				postgresConn.Exec(ctx, txes, time.Now().UTC())
+				_, err := postgresConn.Exec(ctx, txResponses)
+				require.NoError(t, err)
+				_, err = postgresConn.Exec(ctx, txes, time.Now().UTC())
+				require.NoError(t, err)
 			},
 			func() {
-				postgresConn.Exec(context.Background(), `delete from txes`)
-				postgresConn.Exec(context.Background(), `delete from tx_responses`)
+				_, err := postgresConn.Exec(context.Background(), `delete from txes`)
+				require.NoError(t, err)
+				_, err = postgresConn.Exec(context.Background(), `delete from tx_responses`)
+				require.NoError(t, err)
 			},
 		},
 		{
@@ -139,12 +163,16 @@ func TestTxs_TransactionRawLog(t *testing.T) {
 			expected{err: fmt.Errorf("not found")},
 			params{"hash7"},
 			func() {
-				postgresConn.Exec(ctx, txResponses)
-				postgresConn.Exec(ctx, txes, time.Now().UTC())
+				_, err := postgresConn.Exec(ctx, txResponses)
+				require.NoError(t, err)
+				_, err = postgresConn.Exec(ctx, txes, time.Now().UTC())
+				require.NoError(t, err)
 			},
 			func() {
-				postgresConn.Exec(context.Background(), `delete from txes`)
-				postgresConn.Exec(context.Background(), `delete from tx_responses`)
+				_, err := postgresConn.Exec(context.Background(), `delete from txes`)
+				require.NoError(t, err)
+				_, err = postgresConn.Exec(context.Background(), `delete from tx_responses`)
+				require.NoError(t, err)
 			},
 		},
 	}
@@ -180,23 +208,30 @@ func TestTxs_TransactionSigners(t *testing.T) {
 	_, err = postgresConn.Exec(context.Background(), addresses)
 	require.NoError(t, err)
 
-	txes := `INSERT INTO txes (id, hash, code, block_id, signatures, timestamp, memo, timeout_height, extension_options, non_critical_extension_options, auth_info_id, tx_response_id)
+	//nolint:goconst
+	demoTransactions := `INSERT INTO txes (id, hash, code, block_id, signatures, timestamp, memo, timeout_height, extension_options, non_critical_extension_options, auth_info_id, tx_response_id)
 									VALUES
 									  (1, 'hash1', 123, 1, '{"signature1", "signature2"}', $1, 'Random memo 1', 100, '{"option1", "option2"}', '{"non_critical_option1", "non_critical_option2"}', 1, 1),
 									  (2, 'hash2', 456, 2, '{"signature3", "signature4"}', $1, 'Random memo 2', 200, '{"option3", "option4"}', '{"non_critical_option3", "non_critical_option4"}', 2, 2),
 									  (3, 'hash3', 789, 3, '{"signature5", "signature6"}', $1, 'Random memo 3', 300, '{"option5", "option6"}', '{"non_critical_option5", "non_critical_option6"}', 3, 3),
 									  (4, 'hash4', 101112, 4, '{"signature7", "signature8"}', $1, 'Random memo 4', 400, '{"option7", "option8"}', '{"non_critical_option7", "non_critical_option8"}', 4, 4)
 									  `
-	_, err = postgresConn.Exec(context.Background(), txes, time.Now().UTC())
+	_, err = postgresConn.Exec(context.Background(), demoTransactions, time.Now().UTC())
 	require.NoError(t, err)
 
 	defer func() {
-		postgresConn.Exec(context.Background(), `delete from txes`)
-		postgresConn.Exec(context.Background(), `delete from addresses`)
-		postgresConn.Exec(context.Background(), `delete from tx_signer_addresses`)
-		postgresConn.Exec(context.Background(), `delete from tx_signer_info`)
-		postgresConn.Exec(context.Background(), `delete from tx_signer_infos`)
-		postgresConn.Exec(context.Background(), `delete from tx_auth_info`)
+		_, err := postgresConn.Exec(context.Background(), `delete from txes`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from addresses`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from tx_signer_addresses`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from tx_signer_info`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from tx_signer_infos`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from tx_auth_info`)
+		require.NoError(t, err)
 	}()
 
 	txsRepo := NewTxs(postgresConn)
@@ -209,7 +244,8 @@ func TestTxs_TransactionSigners(t *testing.T) {
 
 func TestTxs_Transactions_ByHash(t *testing.T) {
 	defer func() {
-		postgresConn.Exec(context.Background(), `delete from txes`)
+		_, err := postgresConn.Exec(context.Background(), `delete from txes`)
+		require.NoError(t, err)
 	}()
 
 	txes := `INSERT INTO txes (id, hash, code, block_id, signatures, timestamp, memo, timeout_height, extension_options, non_critical_extension_options, auth_info_id, tx_response_id)
@@ -231,18 +267,10 @@ func TestTxs_Transactions_ByHash(t *testing.T) {
 
 func TestTxs_ChartTransactionsByHour(t *testing.T) {
 	defer func() {
-		postgresConn.Exec(context.Background(), `delete from txes`)
+		_, err := postgresConn.Exec(context.Background(), `delete from txes`)
+		require.NoError(t, err)
 	}()
 
-	txes := `INSERT INTO txes (id, hash, code, block_id, signatures, timestamp, memo, timeout_height, extension_options, non_critical_extension_options, auth_info_id, tx_response_id)
-									VALUES
-									  (1, 'hash1', 123, 1, '{"signature1", "signature2"}', $1, 'Random memo 1', 100, '{"option1", "option2"}', '{"non_critical_option1", "non_critical_option2"}', 1, 1),
-									  (2, 'hash2', 456, 2, '{"signature3", "signature4"}', $2, 'Random memo 2', 200, '{"option3", "option4"}', '{"non_critical_option3", "non_critical_option4"}', 2, 2),
-									  (3, 'hash3', 789, 3, '{"signature5", "signature6"}', $3, 'Random memo 3', 300, '{"option5", "option6"}', '{"non_critical_option5", "non_critical_option6"}', 3, 3),
-									  (4, 'hash4', 101112, 4, '{"signature7", "signature8"}', $4, 'Random memo 4', 400, '{"option7", "option8"}', '{"non_critical_option7", "non_critical_option8"}', 4, 4),
-									  (5, 'hash5', 101112, 5, '{"signature7", "signature8"}', $4, 'Random memo 5', 600, '{"option7", "option8"}', '{"non_critical_option7", "non_critical_option8"}', 4, 4),
-									  (6, 'hash6', 101112, 5, '{"signature7", "signature8"}', $5, 'Random memo 5', 600, '{"option7", "option8"}', '{"non_critical_option7", "non_critical_option8"}', 4, 4)
-									  `
 	initTime := time.Now().UTC()
 	_, err := postgresConn.Exec(context.Background(), txes,
 		initTime,
@@ -263,9 +291,12 @@ func TestTxs_ChartTransactionsByHour(t *testing.T) {
 
 func TestTxs_ChartTransactionsVolume(t *testing.T) {
 	defer func() {
-		postgresConn.Exec(context.Background(), `delete from txes`)
-		postgresConn.Exec(context.Background(), `delete from fees`)
-		postgresConn.Exec(context.Background(), `delete from denoms`)
+		_, err := postgresConn.Exec(context.Background(), `delete from txes`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from fees`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from denoms`)
+		require.NoError(t, err)
 	}()
 
 	batch := pgx.Batch{}
@@ -346,9 +377,12 @@ func TestTxs_ExtractNumber(t *testing.T) {
 
 func TestTxs_VolumePerPeriod(t *testing.T) {
 	defer func() {
-		postgresConn.Exec(context.Background(), `delete from txes`)
-		postgresConn.Exec(context.Background(), `delete from fees`)
-		postgresConn.Exec(context.Background(), `delete from denoms`)
+		_, err := postgresConn.Exec(context.Background(), `delete from txes`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from fees`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from denoms`)
+		require.NoError(t, err)
 	}()
 
 	batch := pgx.Batch{}
@@ -404,13 +438,20 @@ func TestTxs_VolumePerPeriod(t *testing.T) {
 
 func TestTxs_TransactionsByEventValue(t *testing.T) {
 	defer func() {
-		postgresConn.Exec(context.Background(), `delete from txes`)
-		postgresConn.Exec(context.Background(), `delete from message_types`)
-		postgresConn.Exec(context.Background(), `delete from message_event_types`)
-		postgresConn.Exec(context.Background(), `delete from messages`)
-		postgresConn.Exec(context.Background(), `delete from message_events`)
-		postgresConn.Exec(context.Background(), `delete from message_event_attribute_keys`)
-		postgresConn.Exec(context.Background(), `delete from message_event_attributes`)
+		_, err := postgresConn.Exec(context.Background(), `delete from txes`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from message_types`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from message_event_types`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from messages`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from message_events`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from message_event_attribute_keys`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from message_event_attributes`)
+		require.NoError(t, err)
 	}()
 
 	txes := `INSERT INTO txes (id, hash, code, block_id, signatures, timestamp, memo, timeout_height,
@@ -503,7 +544,8 @@ INSERT INTO message_event_attributes(id, message_event_id, value, index, message
 		request  params
 		response expected
 	}{
-		{"success",
+		{
+			"success",
 			params{
 				values:   []string{"2"},
 				msgTypes: []string{"/cosmos.gov.v1.MsgVote"},
@@ -515,11 +557,14 @@ INSERT INTO message_event_attributes(id, message_event_id, value, index, message
 				1,
 			},
 		},
-		{"success - multiple types",
+		{
+			"success - multiple types",
 			params{
 				values: []string{"celestia1v8hn5eu8e2amqq2t2hfu8cv3wknmvxvvsryggh"},
-				msgTypes: []string{"/cosmos.bank.v1beta1.MsgSend",
-					"/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward"},
+				msgTypes: []string{
+					"/cosmos.bank.v1beta1.MsgSend",
+					"/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward",
+				},
 				limit:  10,
 				offset: 0,
 			},
@@ -528,11 +573,14 @@ INSERT INTO message_event_attributes(id, message_event_id, value, index, message
 				2,
 			},
 		},
-		{"success - multiple types, limits",
+		{
+			"success - multiple types, limits",
 			params{
 				values: []string{"celestia1v8hn5eu8e2amqq2t2hfu8cv3wknmvxvvsryggh"},
-				msgTypes: []string{"/cosmos.bank.v1beta1.MsgSend",
-					"/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward"},
+				msgTypes: []string{
+					"/cosmos.bank.v1beta1.MsgSend",
+					"/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward",
+				},
 				limit:  1,
 				offset: 0,
 			},
@@ -541,7 +589,8 @@ INSERT INTO message_event_attributes(id, message_event_id, value, index, message
 				1,
 			},
 		},
-		{"success - multiple values",
+		{
+			"success - multiple values",
 			params{
 				values:   []string{"2", "celestia1v8hn5eu8e2amqq2t2hfu8cv3wknmvxvvsryggh"},
 				msgTypes: []string{"/cosmos.gov.v1.MsgVote"},
@@ -553,7 +602,8 @@ INSERT INTO message_event_attributes(id, message_event_id, value, index, message
 				1,
 			},
 		},
-		{"success - not exists",
+		{
+			"success - not exists",
 			params{
 				values:   []string{"7", "celestia1v8hn5eu8e2amqq2t2hfu8cv3wknmvxvvsryggh"},
 				msgTypes: []string{"/cosmos.gov.v1.MsgVote"},
@@ -580,8 +630,10 @@ INSERT INTO message_event_attributes(id, message_event_id, value, index, message
 
 func TestTxs_DelegatesByValidator(t *testing.T) {
 	defer func() {
-		postgresConn.Exec(context.Background(), `delete from txes`)
-		postgresConn.Exec(context.Background(), `delete from tx_delegate_aggregateds`)
+		_, err := postgresConn.Exec(context.Background(), `delete from txes`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from tx_delegate_aggregateds`)
+		require.NoError(t, err)
 	}()
 
 	txes := `INSERT INTO txes (id, hash, code, block_id, signatures, timestamp, memo, timeout_height, extension_options, non_critical_extension_options, auth_info_id, tx_response_id)

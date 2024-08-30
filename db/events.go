@@ -2,12 +2,13 @@ package db
 
 import (
 	"fmt"
+	"strings"
+	"unicode/utf8"
+
 	"github.com/nodersteam/cosmos-indexer/config"
 	"github.com/nodersteam/cosmos-indexer/db/models"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"strings"
-	"unicode/utf8"
 )
 
 func IndexBlockEvents(db *gorm.DB, blockDBWrapper *BlockDBWrapper) (*BlockDBWrapper, error) {
@@ -48,11 +49,15 @@ func IndexBlockEvents(db *gorm.DB, blockDBWrapper *BlockDBWrapper) (*BlockDBWrap
 		blockDBWrapper.Block.Signatures = make([]models.BlockSignature, 0)
 
 		tx := dbTransaction.
-			Where(models.Block{Height: blockDBWrapper.Block.Height,
-				ChainID: blockDBWrapper.Block.ChainID}).
-			Assign(models.Block{BlockEventsIndexed: true,
+			Where(models.Block{
+				Height:  blockDBWrapper.Block.Height,
+				ChainID: blockDBWrapper.Block.ChainID,
+			}).
+			Assign(models.Block{
+				BlockEventsIndexed:  true,
 				TimeStamp:           blockDBWrapper.Block.TimeStamp,
-				ProposerConsAddress: blockDBWrapper.Block.ProposerConsAddress})
+				ProposerConsAddress: blockDBWrapper.Block.ProposerConsAddress,
+			})
 		err := tx.FirstOrCreate(&blockDBWrapper.Block).Error
 		if err != nil {
 			config.Log.Error("Error getting/creating block DB object.", err)
@@ -61,7 +66,7 @@ func IndexBlockEvents(db *gorm.DB, blockDBWrapper *BlockDBWrapper) (*BlockDBWrap
 
 		// saving signatures
 		if len(signaturesCopy) > 0 {
-			for ind, _ := range signaturesCopy {
+			for ind := range signaturesCopy {
 				signaturesCopy[ind].BlockID = uint64(blockDBWrapper.Block.ID)
 			}
 
@@ -196,8 +201,7 @@ func IndexBlockEvents(db *gorm.DB, blockDBWrapper *BlockDBWrapper) (*BlockDBWrap
 					if !utf8.ValidString(currAttributes[attrIndex].Value) || strings.Contains(currAttributes[attrIndex].Value, "\x00") {
 						currAttributes[attrIndex].Value = "-"
 					}
-					currAttributes[attrIndex].BlockEventAttributeKey =
-						blockDBWrapper.UniqueBlockEventAttributeKeys[currAttributes[attrIndex].BlockEventAttributeKey.Key]
+					currAttributes[attrIndex].BlockEventAttributeKey = blockDBWrapper.UniqueBlockEventAttributeKeys[currAttributes[attrIndex].BlockEventAttributeKey.Key]
 				}
 				for ii := range currAttributes {
 					allAttributes = append(allAttributes, &currAttributes[ii])

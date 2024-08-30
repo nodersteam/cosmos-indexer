@@ -28,7 +28,7 @@ type blocksServer struct {
 	cache repository.Cache
 }
 
-func NewBlocksServer(srv service.Blocks, srvTx service.Txs, srvS service.Search, cache repository.Cache) *blocksServer {
+func NewBlocksServer(srv service.Blocks, srvTx service.Txs, srvS service.Search, cache repository.Cache) *blocksServer { //nolint: revive
 	return &blocksServer{srv: srv, srvTx: srvTx, srvS: srvS, cache: cache}
 }
 
@@ -38,8 +38,10 @@ func (r *blocksServer) BlockInfo(ctx context.Context, in *pb.GetBlockInfoRequest
 		return &pb.GetBlockInfoResponse{}, err
 	}
 
-	return &pb.GetBlockInfoResponse{BlockNumber: in.BlockNumber,
-		ChainId: in.ChainId, Info: r.blockToProto(res)}, nil
+	return &pb.GetBlockInfoResponse{
+		BlockNumber: in.BlockNumber,
+		ChainId:     in.ChainId, Info: r.blockToProto(res),
+	}, nil
 }
 
 func (r *blocksServer) BlockValidators(ctx context.Context, in *pb.GetBlockValidatorsRequest) (*pb.GetBlockValidatorsResponse, error) {
@@ -108,8 +110,10 @@ func (r *blocksServer) Transactions(ctx context.Context, in *pb.TransactionsRequ
 		res = append(res, r.txToProto(transaction))
 	}
 
-	return &pb.TransactionsResponse{Tx: res,
-		Result: &pb.Result{Limit: in.Limit.Limit, Offset: in.Limit.Offset, All: total}}, nil
+	return &pb.TransactionsResponse{
+		Tx:     res,
+		Result: &pb.Result{Limit: in.Limit.Limit, Offset: in.Limit.Offset, All: total},
+	}, nil
 }
 
 func (r *blocksServer) CacheTransactions(ctx context.Context, in *pb.TransactionsRequest) (*pb.TransactionsResponse, error) {
@@ -124,8 +128,10 @@ func (r *blocksServer) CacheTransactions(ctx context.Context, in *pb.Transaction
 		res = append(res, r.txToProto(transaction))
 	}
 
-	return &pb.TransactionsResponse{Tx: res,
-		Result: &pb.Result{Limit: in.Limit.Limit, Offset: in.Limit.Offset, All: total}}, nil
+	return &pb.TransactionsResponse{
+		Tx:     res,
+		Result: &pb.Result{Limit: in.Limit.Limit, Offset: in.Limit.Offset, All: total},
+	}, nil
 }
 
 func (r *blocksServer) TotalBlocks(ctx context.Context, in *pb.TotalBlocksRequest) (*pb.TotalBlocksResponse, error) {
@@ -371,7 +377,8 @@ func (r *blocksServer) toSignerInfosProto(signs []*models.SignerInfo) []*pb.Sign
 }
 
 func (r *blocksServer) CacheAggregated(ctx context.Context,
-	_ *pb.CacheAggregatedRequest) (*pb.CacheAggregatedResponse, error) {
+	_ *pb.CacheAggregatedRequest,
+) (*pb.CacheAggregatedResponse, error) {
 	info, err := r.cache.GetTotals(ctx)
 	if err != nil {
 		return &pb.CacheAggregatedResponse{}, err
@@ -411,7 +418,7 @@ func (r *blocksServer) SearchHashByText(ctx context.Context, in *pb.SearchHashBy
 	if len(searchStr) > 3 {
 		height, err := strconv.Atoi(searchStr)
 		if err == nil {
-			res, err = r.srvS.SearchByBlock(ctx, int64(height))
+			res, _ = r.srvS.SearchByBlock(ctx, int64(height))
 			for _, s := range res {
 				data = append(data, &pb.SearchResults{
 					Hash:        s.TxHash,
@@ -562,7 +569,8 @@ func (r *blocksServer) GetValidatorHistoryEvents(ctx context.Context, in *pb.Get
 }
 
 func (r *blocksServer) TransactionsByEventValue(ctx context.Context,
-	in *pb.TransactionsByEventValueRequest) (*pb.TransactionsByEventValueResponse, error) {
+	in *pb.TransactionsByEventValueRequest,
+) (*pb.TransactionsByEventValueResponse, error) {
 	transactions, all, err := r.srvTx.TransactionsByEventValue(ctx, in.Values, in.Type, in.Limit.Limit, in.Limit.Offset)
 	if err != nil {
 		return &pb.TransactionsByEventValueResponse{}, err
@@ -585,10 +593,10 @@ func (r *blocksServer) TransactionsByEventValue(ctx context.Context,
 }
 
 func (r *blocksServer) GetVotesByAccounts(ctx context.Context,
-	in *pb.GetVotesByAccountsRequest) (*pb.GetVotesByAccountsResponse, error) {
+	in *pb.GetVotesByAccountsRequest,
+) (*pb.GetVotesByAccountsResponse, error) {
 	transactions, all, err := r.srvTx.GetVotesByAccounts(ctx, in.Accounts, in.Exclude,
 		in.VoteType, int(in.ProposalID), in.Limit.Limit, in.Limit.Offset)
-
 	if err != nil {
 		return &pb.GetVotesByAccountsResponse{}, err
 	}
@@ -610,7 +618,8 @@ func (r *blocksServer) GetVotesByAccounts(ctx context.Context,
 }
 
 func (r *blocksServer) GetWalletsCountPerPeriod(ctx context.Context,
-	in *pb.GetWalletsCountPerPeriodRequest) (*pb.GetWalletsCountPerPeriodResponse, error) {
+	in *pb.GetWalletsCountPerPeriodRequest,
+) (*pb.GetWalletsCountPerPeriodResponse, error) {
 	count, err := r.srvTx.GetWalletsCountPerPeriod(ctx, in.Start.AsTime(), in.End.AsTime())
 	if err != nil {
 		return &pb.GetWalletsCountPerPeriodResponse{}, err

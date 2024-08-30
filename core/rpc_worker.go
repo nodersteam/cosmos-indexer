@@ -1,9 +1,10 @@
 package core
 
 import (
-	"github.com/nodersteam/cosmos-indexer/clients"
 	"net/http"
 	"sync"
+
+	"github.com/nodersteam/cosmos-indexer/clients"
 
 	ctypes "github.com/cometbft/cometbft/rpc/core/types"
 	txTypes "github.com/cosmos/cosmos-sdk/types/tx"
@@ -41,7 +42,8 @@ func NewBlockRPCWorker(
 	cfg *config.IndexConfig,
 	chainClient *client.ChainClient,
 	db *gorm.DB,
-	rpcClient clients.ChainRPC) BlockRPCWorker {
+	rpcClient clients.ChainRPC,
+) BlockRPCWorker {
 	return &blockRPCWorker{
 		chainStringID: chainStringID,
 		cfg:           cfg,

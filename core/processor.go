@@ -3,6 +3,7 @@ package core
 import (
 	"encoding/hex"
 	"fmt"
+
 	"github.com/rs/zerolog/log"
 
 	ctypes "github.com/cometbft/cometbft/rpc/core/types"

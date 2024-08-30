@@ -3,24 +3,22 @@ package repository
 import (
 	"context"
 	"fmt"
-	"github.com/rs/zerolog/log"
 	"os"
 	"os/exec"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/ory/dockertest/v3"
 )
 
-var (
-	postgresConn *pgxpool.Pool
-)
+var postgresConn *pgxpool.Pool
 
 func TestMain(m *testing.M) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
 
 	dockerPool, err := dockertest.NewPool("")
 	if err != nil {
@@ -31,12 +29,13 @@ func TestMain(m *testing.M) {
 
 	postgresManualMigration(ctx)
 
-	//Run tests
+	// Run tests
 	code := m.Run()
 
 	// You can't defer this because os.Exit doesn't care for defer
 	purgeResources(dockerPool, resourcePostgres)
 
+	cancel()
 	os.Exit(code)
 }
 
@@ -79,7 +78,7 @@ func initializePostgres(ctx context.Context, dockerPool *dockertest.Pool, cfg *p
 		log.Err(err).Msgf("Could not connect to database: %s", err)
 	}
 	log.Info().Msgf(strings.Join(cfg.getFlywayMigrationArgs(dbHostAndPort), " "))
-	cmd := exec.Command("/usr/local/bin/flyway", cfg.getFlywayMigrationArgs(dbHostAndPort)...)
+	cmd := exec.Command("/usr/local/bin/flyway", cfg.getFlywayMigrationArgs(dbHostAndPort)...) //nolint:gosec
 
 	err = cmd.Run()
 	if err != nil {

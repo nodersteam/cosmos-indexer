@@ -128,16 +128,6 @@ func (r *blocks) GetBlockInfoByHash(ctx context.Context, hash string) (*model.Bl
 	return o, nil
 }
 
-func (r *blocks) totalBlockFeesByBlockID(ctx context.Context, blockID int64) (decimal.Decimal, error) {
-	queryTotalFees := `select COALESCE(sum(amount),0) from fees where tx_id IN (select id from txes where block_id=$1)`
-	var totalFees decimal.Decimal
-	err := r.db.QueryRow(ctx, queryTotalFees, blockID).Scan(&totalFees)
-	if err != nil {
-		return decimal.NewFromInt(0), fmt.Errorf("exec total fees %v", err)
-	}
-	return totalFees, nil
-}
-
 func (r *blocks) countAllTxs(ctx context.Context, blockID int64) (int64, error) {
 	queryAll := `select count(*) from txes where txes.block_id = $1`
 	row := r.db.QueryRow(ctx, queryAll, blockID)
@@ -265,12 +255,12 @@ func (r *blocks) calculateMedian(times []int64) float64 {
 	if n%2 == 1 {
 		// If odd, return the middle element
 		return float64(times[n/2])
-	} else {
-		// If even, return the average of the two middle elements
-		mid1 := times[n/2-1]
-		mid2 := times[n/2]
-		return float64(mid1+mid2) / 2.0
 	}
+
+	// If even, return the average of the two middle elements
+	mid1 := times[n/2-1]
+	mid2 := times[n/2]
+	return float64(mid1+mid2) / 2.0
 }
 
 func (r *blocks) blocksCount(ctx context.Context, from, to time.Time) (int64, error) {

@@ -3,13 +3,14 @@ package testdb
 import (
 	"context"
 	"fmt"
+	"log"
+	"strconv"
+	"time"
+
 	"github.com/ory/dockertest/v3"
 	"go.mongodb.org/mongo-driver/mongo"
 	mOptions "go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
-	"log"
-	"strconv"
-	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // for test
 	"github.com/ory/dockertest/v3/docker"

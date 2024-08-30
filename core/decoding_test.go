@@ -2,9 +2,10 @@ package core
 
 import (
 	"context"
-	txv1beta1 "cosmossdk.io/api/cosmos/tx/v1beta1"
 	"encoding/base64"
-	//celblob "github.com/celestiaorg/go-square/blob"
+	"testing"
+
+	// celblob "github.com/celestiaorg/go-square/blob"
 	"github.com/cosmos/cosmos-sdk/codec"
 	cosmosTx "github.com/cosmos/cosmos-sdk/types/tx"
 	"github.com/nodersteam/cosmos-indexer/config"
@@ -12,9 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/proto"
-	anypb "google.golang.org/protobuf/types/known/anypb"
-	"testing"
 )
 
 func TestInAppTxDecoder2(t *testing.T) {
@@ -42,7 +40,7 @@ func TestInAppTxDecoder2(t *testing.T) {
 		}
 
 		cl := probe.GetProbeClient(cfg)
-		txBasic, err := InAppTxDecoder(cl.Codec)([]byte(data))
+		txBasic, err := InAppTxDecoder(cl.Codec)(data)
 		require.NoError(t, err)
 		txFull := txBasic.(*cosmosTx.Tx)
 		require.True(t, len(txFull.Body.Messages) > 0)
@@ -57,9 +55,9 @@ func TestInAppTxDecoder2(t *testing.T) {
 func TestInAppTxDecoder(t *testing.T) {
 	// https://celestia.explorers.guru/block/1386451
 
-	grpcConn, err := grpc.Dial(
+	grpcConn, err := grpc.NewClient(
 		"celestia-grpc.noders.services:11090",
-		//grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{})),
+		// grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{})),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.ForceCodec(codec.NewProtoCodec(nil).
 			GRPCCodec())),
@@ -75,26 +73,3 @@ func TestInAppTxDecoder(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
-
-func unmarshalCosmosTx(txbytes []byte) ([]*anypb.Any, error) {
-	var raw txv1beta1.TxRaw
-	if err := proto.Unmarshal(txbytes, &raw); err != nil {
-		return nil, err
-	}
-
-	var body txv1beta1.TxBody
-	if err := proto.Unmarshal(raw.BodyBytes, &body); err != nil {
-		return nil, err
-	}
-	return body.Messages, nil
-}
-
-/*
-func unmarshalCelestiaBlobTx(txbytes []byte) (*celblob.BlobTx, error) {
-	blobTx, success := celblob.UnmarshalBlobTx(txbytes)
-	if !success {
-		return nil, errors.New("fail unmarshaling celestia blobtx")
-	}
-	return blobTx, nil
-}
-*/

@@ -47,7 +47,7 @@ type txs struct {
 	txRepo repository.Txs
 }
 
-func NewTxs(txRepo repository.Txs) *txs {
+func NewTxs(txRepo repository.Txs) Txs {
 	return &txs{txRepo: txRepo}
 }
 
@@ -97,7 +97,7 @@ func (s *txs) GetTxByHash(ctx context.Context, txHash string) (*models.Tx, error
 	for _, tx := range transactions {
 		events, err := s.txRepo.GetEvents(ctx, tx.ID)
 		if err != nil {
-			log.Err(err).Msgf("error getting events for tx %s", tx.ID)
+			log.Err(err).Msgf("error getting events for tx %d", tx.ID)
 			continue
 		}
 		tx.Events = events
@@ -145,17 +145,20 @@ func (s *txs) GetPowerEvents(ctx context.Context, accountAddress string, limit i
 }
 
 func (s *txs) GetValidatorHistoryEvents(ctx context.Context, accountAddress string,
-	limit int64, offset int64) ([]*models.Tx, int64, error) {
+	limit int64, offset int64,
+) ([]*models.Tx, int64, error) {
 	return s.txRepo.GetValidatorHistory(ctx, accountAddress, limit, offset)
 }
 
 func (s *txs) TransactionsByEventValue(ctx context.Context, values []string,
-	messageType []string, limit int64, offset int64) ([]*models.Tx, int64, error) {
+	messageType []string, limit int64, offset int64,
+) ([]*models.Tx, int64, error) {
 	return s.txRepo.TransactionsByEventValue(ctx, values, messageType, true, limit, offset)
 }
 
 func (s *txs) GetVotesByAccounts(ctx context.Context, accounts []string, excludeAcc bool, voteType string,
-	proposalID int, limit int64, offset int64) ([]*models.Tx, int64, error) {
+	proposalID int, limit int64, offset int64,
+) ([]*models.Tx, int64, error) {
 	return s.txRepo.GetVotesByAccounts(ctx, accounts, excludeAcc, voteType, proposalID, limit, offset)
 }
 
@@ -176,6 +179,7 @@ func (s *txs) AccountInfo(ctx context.Context, account string) (*model.AccountIn
 }
 
 func (s *txs) DelegatesByValidator(ctx context.Context, from, to time.Time, valoperAddress string,
-	limit int64, offset int64) (data []*models.Tx, totalSum *model.Denom, all int64, err error) {
+	limit int64, offset int64,
+) (data []*models.Tx, totalSum *model.Denom, all int64, err error) {
 	return s.txRepo.DelegatesByValidator(ctx, from, to, valoperAddress, limit, offset)
 }

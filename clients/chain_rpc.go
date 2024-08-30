@@ -1,6 +1,9 @@
 package clients
 
 import (
+	"math"
+	"time"
+
 	coretypes "github.com/cometbft/cometbft/rpc/core/types"
 	types "github.com/cosmos/cosmos-sdk/types"
 	txTypes "github.com/cosmos/cosmos-sdk/types/tx"
@@ -8,8 +11,6 @@ import (
 	"github.com/nodersteam/cosmos-indexer/rpc"
 	probeClient "github.com/nodersteam/probe/client"
 	probeQuery "github.com/nodersteam/probe/query"
-	"math"
-	"time"
 )
 
 type ChainRPC interface {

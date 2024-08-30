@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gorm.io/gorm/clause"
 	"io"
 	"net"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"gorm.io/gorm/clause"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/nodersteam/cosmos-indexer/clients"
@@ -50,7 +51,6 @@ type Indexer struct {
 	cfg                                 *config.IndexConfig
 	db                                  *gorm.DB
 	cl                                  *client.ChainClient
-	blockEnqueueFunction                func(chan *core.EnqueueData) error
 	blockEventFilterRegistries          blockEventFilterRegistries
 	messageTypeFilters                  []filter.MessageTypeFilter
 	customBeginBlockEventParserRegistry map[string][]parsers.BlockEventParser // Used for associating parsers to block event types in BeginBlock events
@@ -143,7 +143,6 @@ func setupIndex(cmd *cobra.Command, args []string) error {
 			indexer.blockEventFilterRegistries.endBlockEventFilterRegistry.RollingWindowEventFilters,
 			indexer.messageTypeFilters,
 			err = config.ParseJSONFilterConfig(b)
-
 		if err != nil {
 			config.Log.Fatal("Failed to parse block event filter config", err)
 		}
@@ -346,8 +345,8 @@ func runIndexer(ctx context.Context, idxr *Indexer, runSrv bool, startBlock, end
 
 	if runSrv {
 		log.Info().Msgf("running Blocks server %d", idxr.cfg.Server.Port)
-		grpcServUrl := fmt.Sprintf(":%d", idxr.cfg.Server.Port)
-		listener, err := net.Listen("tcp", grpcServUrl)
+		grpcServURL := fmt.Sprintf(":%d", idxr.cfg.Server.Port)
+		listener, err := net.Listen("tcp", grpcServURL)
 		if err != nil {
 			config.Log.Fatal("Unable to run listener", err)
 		}
@@ -359,9 +358,8 @@ func runIndexer(ctx context.Context, idxr *Indexer, runSrv bool, startBlock, end
 			grpc.MaxRecvMsgSize(size))
 		blocks.RegisterBlocksServiceServer(grpcServer, blocksServer)
 		go func() {
-			log.Info().Msgf("blocks server started: " + grpcServUrl)
+			log.Info().Msgf("blocks server started: " + grpcServURL)
 			if err = grpcServer.Serve(listener); err != nil {
-				log.Panic()
 				grpcServer.GracefulStop()
 				return
 			}
@@ -373,13 +371,35 @@ func runIndexer(ctx context.Context, idxr *Indexer, runSrv bool, startBlock, end
 	defer close(chTxs)
 
 	cacheConsumer := consumer.NewCacheConsumer(cache, chBlocks, chTxs, cache)
-	go cacheConsumer.RunBlocks(ctx)
-	go cacheConsumer.RunTransactions(ctx)
+	go func(ctx context.Context) {
+		err := cacheConsumer.RunBlocks(ctx)
+		if err != nil {
+			log.Err(err).Msg("Error running cache: RunBlocks")
+		}
+	}(ctx)
+
+	go func(ctx context.Context) {
+		err := cacheConsumer.RunTransactions(ctx)
+		if err != nil {
+			log.Err(err).Msg("Error running cache: RunTransactions")
+		}
+	}(ctx)
 
 	aggregatesConsumer := consumer.NewAggregatesConsumer(cache, repoBlocks, repoTxs)
-	go aggregatesConsumer.Consume(ctx)
+	go func(ctx context.Context) {
+		err := aggregatesConsumer.Consume(ctx)
+		if err != nil {
+			log.Err(err).Msg("Error running aggregates: Consume")
+		}
+	}(ctx)
+
 	if runSrv {
-		go aggregatesConsumer.RefreshMaterializedViews(ctx)
+		go func(ctx context.Context) {
+			err := aggregatesConsumer.RefreshMaterializedViews(ctx)
+			if err != nil {
+				log.Err(err).Msgf("Error refreshing materialized views")
+			}
+		}(ctx)
 	}
 
 	wg.Add(1)
@@ -408,7 +428,12 @@ func runIndexer(ctx context.Context, idxr *Indexer, runSrv bool, startBlock, end
 
 	if runSrv {
 		blSearchConsumer := consumer.NewSearchBlocksConsumer(rdb, "pub/blocks", searchRepo) // TODO
-		go blSearchConsumer.Consume(ctx)
+		go func(ctx context.Context) {
+			err := blSearchConsumer.Consume(ctx)
+			if err != nil {
+				log.Err(err).Msgf("error on tx search consumer closing")
+			}
+		}(ctx)
 
 		// migration
 		go func() {
@@ -484,13 +509,14 @@ func runIndexer(ctx context.Context, idxr *Indexer, runSrv bool, startBlock, end
 
 func mongoDBMigrate(ctx context.Context,
 	db *mongo.Database,
-	pg *pgxpool.Pool, search repository.Search) (*mongo.Database, error) {
+	pg *pgxpool.Pool, search repository.Search,
+) (*mongo.Database, error) {
 	m := migrate.NewMigrate(db, migrate.Migration{
 		Version:     1,
 		Description: "add unique index idx_txhash_type",
 		Up: func(ctx context.Context, db *mongo.Database) error {
 			opt := options.Index().SetName("idx_txhash_type").SetUnique(true)
-			keys := bson.D{{"tx_hash", 1}, {"type", 1}}
+			keys := bson.D{{"tx_hash", 1}, {"type", 1}} //nolint
 			model := mongo.IndexModel{Keys: keys, Options: opt}
 			_, err := db.Collection("search").Indexes().CreateOne(ctx, model)
 			if err != nil {
@@ -514,15 +540,14 @@ func mongoDBMigrate(ctx context.Context,
 			rows, err := pg.Query(ctx, `select distinct hash from txes`)
 			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				return err
-			} else {
-				for rows.Next() {
-					var txHash string
-					if err = rows.Scan(&txHash); err != nil {
-						return err
-					}
-					if err = search.AddHash(context.Background(), txHash, "transaction", 0); err != nil {
-						log.Err(err).Msgf("Failed to add hash to index")
-					}
+			}
+			for rows.Next() {
+				var txHash string
+				if err = rows.Scan(&txHash); err != nil {
+					return err
+				}
+				if err = search.AddHash(context.Background(), txHash, "transaction", 0); err != nil {
+					log.Err(err).Msgf("Failed to add hash to index")
 				}
 			}
 
@@ -530,15 +555,14 @@ func mongoDBMigrate(ctx context.Context,
 			rows, err = pg.Query(ctx, `select distinct block_hash from blocks`)
 			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				return err
-			} else {
-				for rows.Next() {
-					var txHash string
-					if err = rows.Scan(&txHash); err != nil {
-						return err
-					}
-					if err = search.AddHash(context.Background(), txHash, "block", 0); err != nil {
-						log.Err(err).Msgf("Failed to add hash to index")
-					}
+			}
+			for rows.Next() {
+				var txHash string
+				if err = rows.Scan(&txHash); err != nil {
+					return err
+				}
+				if err = search.AddHash(context.Background(), txHash, "block", 0); err != nil {
+					log.Err(err).Msgf("Failed to add hash to index")
 				}
 			}
 
@@ -553,20 +577,22 @@ func mongoDBMigrate(ctx context.Context,
 		Description: "migrate existing hashes with block height",
 		Up: func(ctx context.Context, db *mongo.Database) error {
 			config.Log.Info("starting txs v3 migration")
-			db.Collection("search").Drop(ctx)
+			err := db.Collection("search").Drop(ctx)
+			if err != nil {
+				log.Err(err).Msgf("Failed to drop index, continue")
+			}
 
 			rows, err := pg.Query(ctx, `select distinct hash from txes`)
 			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				return err
-			} else {
-				for rows.Next() {
-					var txHash string
-					if err = rows.Scan(&txHash); err != nil {
-						return err
-					}
-					if err = search.AddHash(context.Background(), txHash, "transaction", 0); err != nil {
-						log.Err(err).Msgf("Failed to add hash to index")
-					}
+			}
+			for rows.Next() {
+				var txHash string
+				if err = rows.Scan(&txHash); err != nil {
+					return err
+				}
+				if err = search.AddHash(context.Background(), txHash, "transaction", 0); err != nil {
+					log.Err(err).Msgf("Failed to add hash to index")
 				}
 			}
 
@@ -574,16 +600,15 @@ func mongoDBMigrate(ctx context.Context,
 			rows, err = pg.Query(ctx, `select distinct block_hash,height from blocks`)
 			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				return err
-			} else {
-				for rows.Next() {
-					var txHash string
-					var blockHeight int64
-					if err = rows.Scan(&txHash, &blockHeight); err != nil {
-						return err
-					}
-					if err = search.AddHash(context.Background(), txHash, "block", blockHeight); err != nil {
-						log.Err(err).Msgf("Failed to add hash to index")
-					}
+			}
+			for rows.Next() {
+				var txHash string
+				var blockHeight int64
+				if err = rows.Scan(&txHash, &blockHeight); err != nil {
+					return err
+				}
+				if err = search.AddHash(context.Background(), txHash, "block", blockHeight); err != nil {
+					log.Err(err).Msgf("Failed to add hash to index")
 				}
 			}
 
@@ -592,7 +617,8 @@ func mongoDBMigrate(ctx context.Context,
 		Down: func(ctx context.Context, db *mongo.Database) error {
 			// ignoring, what's done is done.
 			return nil
-		}})
+		},
+	})
 	if err := m.Up(ctx, migrate.AllAvailable); err != nil {
 		return nil, err
 	}
@@ -667,8 +693,8 @@ func (idxr *Indexer) processBlocks(wg *sync.WaitGroup,
 	chainID uint,
 	blockEventFilterRegistry blockEventFilterRegistries,
 	blocksCh chan *model.BlockInfo,
-	cache repository.Cache) {
-
+	cache repository.Cache,
+) {
 	defer close(blockEventsDataChan)
 	defer close(txDataChan)
 	defer wg.Done()
@@ -779,8 +805,8 @@ func (idxr *Indexer) doDBUpdates(wg *sync.WaitGroup,
 	blockEventsDataChan chan *blockEventsDBData,
 	txsCh chan *models.Tx,
 	txRepo repository.Txs,
-	cache repository.PubSubCache) {
-
+	cache repository.PubSubCache,
+) {
 	blocksProcessed := 0
 	dbWrites := 0
 	dbReattempts := 0
@@ -838,8 +864,11 @@ func (idxr *Indexer) doDBUpdates(wg *sync.WaitGroup,
 				transaction.SenderReceiver = res
 
 				// TODO not the best place
-				go func(tx2 models.Tx) {
-					idxr.saveAggregated(context.Background(), txRepo, tx2)
+				go func(tx models.Tx) {
+					errAggr := idxr.saveAggregated(context.Background(), txRepo, tx)
+					if errAggr != nil {
+						log.Err(errAggr).Msgf("Failed to save aggregated tx")
+					}
 				}(transaction)
 
 				// TODO decomposite everything
@@ -865,7 +894,6 @@ func (idxr *Indexer) doDBUpdates(wg *sync.WaitGroup,
 			}
 
 			err = dbTypes.IndexCustomBlockEvents(*idxr.cfg, idxr.db, indexedDataset, identifierLoggingString, idxr.customBeginBlockParserTrackers, idxr.customEndBlockParserTrackers)
-
 			if err != nil {
 				config.Log.Fatal(fmt.Sprintf("Error indexing custom block events for %s.", identifierLoggingString), err)
 			}
@@ -888,15 +916,15 @@ func (idxr *Indexer) saveAggregated(ctx context.Context, txRepo repository.Txs, 
 	txDelegateAggregated.BlockHeight = tx.Block.Height
 
 	isMsgDelegate := false
+	isMsgUndelegate := false
 	for _, event := range events {
 		if event.MessageType == "/cosmos.staking.v1beta1.MsgDelegate" {
 			isMsgDelegate = true
-			txDelegateAggregated.TxType = event.MessageType
-		}
-		if !isMsgDelegate {
-			continue
+		} else if event.MessageType == "/cosmos.staking.v1beta1.MsgUndelegate" {
+			isMsgUndelegate = true
 		}
 
+		txDelegateAggregated.TxType = event.MessageType
 		if event.Key == "validator" {
 			txDelegateAggregated.Validator = event.Value
 		}
@@ -906,7 +934,11 @@ func (idxr *Indexer) saveAggregated(ctx context.Context, txRepo repository.Txs, 
 			if err != nil {
 				return err
 			}
-			txDelegateAggregated.Amount = amount
+			if isMsgDelegate {
+				txDelegateAggregated.Amount = amount
+			} else if isMsgUndelegate {
+				txDelegateAggregated.Amount = amount.Neg()
+			}
 			txDelegateAggregated.Denom = denom
 		}
 
@@ -915,13 +947,12 @@ func (idxr *Indexer) saveAggregated(ctx context.Context, txRepo repository.Txs, 
 		}
 	}
 
-	if isMsgDelegate {
+	if isMsgDelegate || isMsgUndelegate {
 		return idxr.db.Transaction(func(tx *gorm.DB) error {
 			err = tx.Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "hash"}},
 				DoNothing: true,
 			}).Where("hash = ?", txDelegateAggregated.Hash).FirstOrCreate(&txDelegateAggregated).Error
-
 			if err != nil {
 				log.Err(err).Msgf("error saving aggregated %v", txDelegateAggregated)
 			}

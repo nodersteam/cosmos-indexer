@@ -2,6 +2,9 @@ package tx
 
 import (
 	"fmt"
+	"math/big"
+	"time"
+
 	"github.com/cosmos/cosmos-sdk/crypto/keys/multisig"
 	cryptoTypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	"github.com/cosmos/cosmos-sdk/types"
@@ -13,8 +16,6 @@ import (
 	"github.com/nodersteam/cosmos-indexer/util"
 	"github.com/nodersteam/probe/client"
 	"github.com/rs/zerolog/log"
-	"math/big"
-	"time"
 )
 
 type Processor interface {
@@ -79,7 +80,8 @@ func (a *processor) ProcessTx(tx txtypes.MergedTx, messagesRaw [][]byte) (txDBWa
 // 2. Processes signers from the signers array
 // 3. Processes the fee payer
 func (a *processor) ProcessSigners(authInfo *cosmosTx.AuthInfo,
-	messageSigners []types.AccAddress) ([]models.Address, []*models.SignerInfo, error) {
+	messageSigners []types.AccAddress,
+) ([]models.Address, []*models.SignerInfo, error) {
 	// For unique checks
 	signerAddressMap := make(map[string]models.Address)
 	// For deterministic output of signer values
@@ -191,7 +193,8 @@ func (a *processor) ProcessFees(authInfo cosmosTx.AuthInfo, signers []models.Add
 func (a *processor) ProcessMessage(messageIndex int, message types.Msg,
 	txMessageEventLogs []txtypes.LogMessage,
 	uniqueEventTypes map[string]models.MessageEventType,
-	uniqueEventAttributeKeys map[string]models.MessageEventAttributeKey) (string, dbTypes.MessageDBWrapper) {
+	uniqueEventAttributeKeys map[string]models.MessageEventAttributeKey,
+) (string, dbTypes.MessageDBWrapper) {
 	var currMessage models.Message
 	var currMessageType models.MessageType
 	currMessage.MessageIndex = messageIndex

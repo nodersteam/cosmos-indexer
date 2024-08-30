@@ -274,12 +274,10 @@ func GetBlocksFromStart(db *gorm.DB, chainID uint, startHeight int64, endHeight 
 	var blocks []models.Block
 
 	initialWhere := db.Where("chain_id = ?::int AND time_stamp != '0001-01-01T00:00:00.000Z' AND height >= ?", chainID, startHeight)
-
 	if endHeight != -1 {
 		initialWhere = initialWhere.Where("height <= ?", endHeight)
 	}
-
-	initialWhere = db.Order("height desc").Limit(1)
+	initialWhere = initialWhere.Order("height desc").Limit(1)
 
 	if err := initialWhere.Find(&blocks).Error; err != nil {
 		return nil, err
@@ -379,7 +377,7 @@ func IndexNewBlock(db *gorm.DB, block models.Block, txs []TxDBWrapper, indexerCo
 		}
 
 		// saving signatures
-		for ind, _ := range signaturesCopy {
+		for ind := range signaturesCopy {
 			signaturesCopy[ind].BlockID = uint64(block.ID)
 		}
 		if len(signaturesCopy) > 0 {
@@ -454,21 +452,21 @@ func IndexNewBlock(db *gorm.DB, block models.Block, txs []TxDBWrapper, indexerCo
 		for _, tx := range uniqueTxes {
 
 			// create auth_info address if it doesn't exist
-			if err := dbTransaction.Where(&tx.AuthInfo.Tip).FirstOrCreate(&tx.AuthInfo.Tip).Error; err != nil {
+			if err := dbTransaction.Where(&tx.AuthInfo.Tip).FirstOrCreate(&tx.AuthInfo.Tip).Error; err != nil { //nolint:gosec
 				config.Log.Warnf("Error getting/creating Tip DB object. %v %v", err, tx.AuthInfo.Tip)
 				err = dbTransaction.Rollback().Error
 				if err != nil {
-					config.Log.Warnf("error during rollback %v %v", err)
+					config.Log.Warnf("error during rollback %v", err)
 				}
 				continue
 			}
 			tx.AuthInfo.TipID = tx.AuthInfo.Tip.ID
 
-			if err := dbTransaction.Where(&tx.AuthInfo.Fee).FirstOrCreate(&tx.AuthInfo.Fee).Error; err != nil {
+			if err := dbTransaction.Where(&tx.AuthInfo.Fee).FirstOrCreate(&tx.AuthInfo.Fee).Error; err != nil { //nolint:gosec
 				config.Log.Warnf("Error getting/creating Fee DB object. %v %v", err, tx.AuthInfo.Fee)
 				err = dbTransaction.Rollback().Error
 				if err != nil {
-					config.Log.Warnf("error during rollback %v %v", err)
+					config.Log.Warnf("error during rollback %v", err)
 				}
 				continue
 			}
@@ -481,39 +479,39 @@ func IndexNewBlock(db *gorm.DB, block models.Block, txs []TxDBWrapper, indexerCo
 						config.Log.Warnf("Error getting/creating signerInfo.Address DB object %v %v", err, signerInfo.Address)
 						err = dbTransaction.Rollback().Error
 						if err != nil {
-							config.Log.Warnf("error during rollback %v %v", err)
+							config.Log.Warnf("error during rollback %v", err)
 						}
 						continue
 					}
 					signerInfo.AddressID = signerInfo.Address.ID
 				}
-				if err := dbTransaction.Where(&signerInfo).FirstOrCreate(&signerInfo).Error; err != nil {
+				if err := dbTransaction.Where(&signerInfo).FirstOrCreate(&signerInfo).Error; err != nil { //nolint:gosec
 					config.Log.Warnf("Error getting/creating signerInfo DB object %v %v", err, signerInfo)
 					err = dbTransaction.Rollback().Error
 					if err != nil {
-						config.Log.Warnf("error during rollback %v %v", err)
+						config.Log.Warnf("error during rollback %v", err)
 					}
 					continue
 				}
 			}
 
-			if err := dbTransaction.Where(&tx.AuthInfo).FirstOrCreate(&tx.AuthInfo).Error; err != nil {
+			if err := dbTransaction.Where(&tx.AuthInfo).FirstOrCreate(&tx.AuthInfo).Error; err != nil { //nolint:gosec
 				config.Log.Warnf("Error getting/creating authInfo DB object. %v %v", err, tx.AuthInfo)
 				err = dbTransaction.Rollback().Error
 				if err != nil {
-					config.Log.Warnf("error during rollback %v %v", err)
+					config.Log.Warnf("error during rollback %v", err)
 				}
 				continue
 			}
 
 			tx.AuthInfoID = tx.AuthInfo.ID
-			if err := dbTransaction.Where(&tx.TxResponse).Clauses(clause.OnConflict{
+			if err := dbTransaction.Where(&tx.TxResponse).Clauses(clause.OnConflict{ //nolint:gosec
 				DoNothing: true,
-			}).FirstOrCreate(&tx.TxResponse).Error; err != nil {
+			}).FirstOrCreate(&tx.TxResponse).Error; err != nil { //nolint:gosec
 				config.Log.Warnf("Error getting/creating txResponse DB object. %v %v", err, tx.TxResponse)
 				err = dbTransaction.Rollback().Error
 				if err != nil {
-					config.Log.Warnf("error during rollback %v %v", err)
+					config.Log.Warnf("error during rollback %v", err)
 				}
 				continue
 			}
