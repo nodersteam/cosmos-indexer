@@ -150,8 +150,8 @@ func (r *txs) ChartTxByDay(ctx context.Context, from time.Time, to time.Time) ([
 }
 
 func (r *txs) TransactionsPerPeriod(ctx context.Context, to time.Time) (allTx,
-	all24H, all48H, all30D int64, err error) {
-
+	all24H, all48H, all30D int64, err error,
+) {
 	query := `select count(*) from txes`
 	row := r.db.QueryRow(ctx, query)
 	if err := row.Scan(&allTx); err != nil {
@@ -813,17 +813,21 @@ group by inn.id, inn.timestamp, inn.hash, inn.height`
 }
 
 func (r *txs) GetValidatorHistory(ctx context.Context, accountAddress string, limit int64, offset int64) ([]*models.Tx, int64, error) {
-	types := []string{"/cosmos.slashing.v1beta1.MsgUnjail",
+	types := []string{
+		"/cosmos.slashing.v1beta1.MsgUnjail",
 		"/cosmos.staking.v1beta1.MsgEditValidator",
-		"/cosmos.staking.v1beta1.MsgCreateValidator"}
+		"/cosmos.staking.v1beta1.MsgCreateValidator",
+	}
 	return r.getTransactionsByTypes(ctx, accountAddress, types, limit, offset)
 }
 
 func (r *txs) GetPowerEvents(ctx context.Context, accountAddress string, limit int64, offset int64) ([]*models.Tx, int64, error) {
-	types := []string{"/cosmos.staking.v1beta1.MsgDelegate",
+	types := []string{
+		"/cosmos.staking.v1beta1.MsgDelegate",
 		"/cosmos.staking.v1beta1.MsgUndelegate",
 		"/cosmos.staking.v1beta1.MsgBeginRedelegate",
-		"/cosmos.staking.v1beta1.MsgCancelUnbondingDelegation"}
+		"/cosmos.staking.v1beta1.MsgCancelUnbondingDelegation",
+	}
 	return r.getTransactionsByTypes(ctx, accountAddress, types, limit, offset)
 }
 
@@ -882,7 +886,8 @@ func (r *txs) getTransactionsByTypes(ctx context.Context, accountAddress string,
 }
 
 func (r *txs) transactionsByEventValuePrepare(values []string, messageType []string,
-	limit int64, offset int64) (string, []any) {
+	limit int64, offset int64,
+) (string, []any) {
 	params := 4
 	placeholders := make([]string, len(values))
 	for i := range values {
@@ -917,7 +922,8 @@ func (r *txs) transactionsByEventValuePrepare(values []string, messageType []str
 }
 
 func (r *txs) TransactionsByEventValue(ctx context.Context, values []string, messageType []string, includeEvents bool,
-	limit int64, offset int64) ([]*models.Tx, int64, error) {
+	limit int64, offset int64,
+) ([]*models.Tx, int64, error) {
 	query, args := r.transactionsByEventValuePrepare(values, messageType, limit, offset)
 
 	rows, err := r.db.Query(ctx, query, args...)
@@ -1020,7 +1026,8 @@ order by messages.message_index, message_events.index, message_event_attributes.
 }
 
 func (r *txs) GetVotesByAccounts(ctx context.Context, accounts []string, excludeAccounts bool, voteType string,
-	proposalID int, limit int64, offset int64) ([]*models.Tx, int64, error) {
+	proposalID int, limit int64, offset int64,
+) ([]*models.Tx, int64, error) {
 	queryTxs, paramsTxs := r.transactionsByEventValuePrepare(
 		[]string{voteType, strconv.Itoa(proposalID)},
 		[]string{"/cosmos.gov.v1beta1.MsgVote", "/cosmos.authz.v1beta1.MsgExec"}, 100000, 0)
@@ -1146,7 +1153,8 @@ group by txs.denom;`
 }
 
 func (r *txs) DelegatesByValidator(ctx context.Context, from, to time.Time, valoperAddress string,
-	limit int64, offset int64) (data []*models.Tx, totalSum *model.Denom, all int64, err error) {
+	limit int64, offset int64,
+) (data []*models.Tx, totalSum *model.Denom, all int64, err error) {
 	query := `SELECT hash from tx_delegate_aggregateds 
             where date(timestamp) BETWEEN date($1) and date($2) and validator=$3 
             LIMIT $4::integer OFFSET $5::integer;`

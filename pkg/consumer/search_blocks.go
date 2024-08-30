@@ -3,6 +3,7 @@ package consumer
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/nodersteam/cosmos-indexer/db/models"
 	"github.com/nodersteam/cosmos-indexer/pkg/repository"
 	"github.com/redis/go-redis/v9"
@@ -20,7 +21,8 @@ type searchBlocks struct {
 }
 
 func NewSearchBlocksConsumer(rdb *redis.Client,
-	blocksTopic string, repo repository.Search) *searchBlocks {
+	blocksTopic string, repo repository.Search,
+) *searchBlocks {
 	return &searchBlocks{rdb: rdb, repo: repo, topic: blocksTopic}
 }
 
@@ -65,7 +67,10 @@ func (s *searchBlocks) Consume(ctx context.Context) error {
 			log.Debug().Msgf("breaking the worker loop.")
 			return nil
 		case newRecord := <-innerReceiver:
-			s.repo.AddHash(ctx, newRecord.BlockHash, "block", newRecord.Height)
+			err := s.repo.AddHash(ctx, newRecord.BlockHash, "block", newRecord.Height)
+			if err != nil {
+				log.Err(err).Msgf("error adding hash")
+			}
 		}
 	}
 }

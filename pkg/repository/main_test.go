@@ -3,20 +3,19 @@ package repository
 import (
 	"context"
 	"fmt"
-	"github.com/rs/zerolog/log"
 	"os"
 	"os/exec"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/ory/dockertest/v3"
 )
 
-var (
-	postgresConn *pgxpool.Pool
-)
+var postgresConn *pgxpool.Pool
 
 func TestMain(m *testing.M) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -31,7 +30,7 @@ func TestMain(m *testing.M) {
 
 	postgresManualMigration(ctx)
 
-	//Run tests
+	// Run tests
 	code := m.Run()
 
 	// You can't defer this because os.Exit doesn't care for defer

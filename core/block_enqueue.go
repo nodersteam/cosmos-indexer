@@ -3,13 +3,14 @@ package core
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/nodersteam/cosmos-indexer/clients"
-	"github.com/rs/zerolog/log"
 	"math"
 	"os"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/nodersteam/cosmos-indexer/clients"
+	"github.com/rs/zerolog/log"
 
 	"github.com/nodersteam/cosmos-indexer/config"
 	dbTypes "github.com/nodersteam/cosmos-indexer/db"
@@ -25,7 +26,8 @@ type EnqueueData struct {
 }
 
 func GenerateBlockFileEnqueueFunction(cfg config.IndexConfig,
-	blockInputFile string, rpcClient clients.ChainRPC) (func(chan *EnqueueData) error, error) {
+	blockInputFile string, rpcClient clients.ChainRPC,
+) (func(chan *EnqueueData) error, error) {
 	return func(blockChan chan *EnqueueData) error {
 		plan, err := os.ReadFile(blockInputFile)
 		if err != nil {
@@ -151,7 +153,8 @@ func GenerateMsgTypeEnqueueFunction(db *gorm.DB, cfg config.IndexConfig, chainID
 // indexed according to the current configuration.
 // If failed block reattempts are enabled, it will enqueue those according to the passed in configuration as well.
 func GenerateDefaultEnqueueFunction(db *gorm.DB, cfg config.IndexConfig, chainID uint,
-	rpcClient clients.ChainRPC, startBlock, endBlock int64) (func(chan *EnqueueData) error, error) {
+	rpcClient clients.ChainRPC, startBlock, endBlock int64,
+) (func(chan *EnqueueData) error, error) {
 	var failedBlockEnqueueData []*EnqueueData
 	if cfg.Base.ReattemptFailedBlocks {
 		var failedEventBlocks []models.FailedEventBlock

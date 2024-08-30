@@ -3,12 +3,13 @@ package tx
 import (
 	"encoding/hex"
 	"fmt"
-	"github.com/nodersteam/cosmos-indexer/core"
-	"github.com/shopspring/decimal"
 	"reflect"
 	"strings"
 	"time"
 	"unsafe"
+
+	"github.com/nodersteam/cosmos-indexer/core"
+	"github.com/shopspring/decimal"
 
 	coretypes "github.com/cometbft/cometbft/rpc/core/types"
 	"github.com/cosmos/cosmos-sdk/types"
@@ -40,7 +41,8 @@ func NewParser(db *gorm.DB, cl *client.ChainClient, processor Processor) Parser 
 }
 
 func (a *parser) ProcessRPCBlockByHeightTXs(messageTypeFilters []filter.MessageTypeFilter,
-	blockResults *coretypes.ResultBlock, resultBlockRes *coretypes.ResultBlockResults) ([]dbTypes.TxDBWrapper, *time.Time, error) {
+	blockResults *coretypes.ResultBlock, resultBlockRes *coretypes.ResultBlockResults,
+) ([]dbTypes.TxDBWrapper, *time.Time, error) {
 	if len(blockResults.Block.Txs) != len(resultBlockRes.TxsResults) {
 		config.Log.Fatalf("blockResults & resultBlockRes: different length")
 	}
@@ -147,7 +149,7 @@ func (a *parser) ProcessRPCBlockByHeightTXs(messageTypeFilters []filter.MessageT
 			GasWanted: txResult.GasWanted,
 			Codespace: txResult.Codespace,
 			Info:      txResult.Info,
-			//Data:      string(txResult.Data), TODO
+			// Data:      string(txResult.Data), TODO
 		}
 
 		indexerTx.AuthInfo = *txFull.AuthInfo
@@ -247,7 +249,8 @@ func (a *parser) ProcessRPCBlockByHeightTXs(messageTypeFilters []filter.MessageT
 
 // ProcessRPCTXs - Given an RPC response, build out the more specific data used by the parser.
 func (a *parser) ProcessRPCTXs(messageTypeFilters []filter.MessageTypeFilter,
-	txEventResp *cosmosTx.GetTxsEventResponse) ([]dbTypes.TxDBWrapper, *time.Time, error) {
+	txEventResp *cosmosTx.GetTxsEventResponse,
+) ([]dbTypes.TxDBWrapper, *time.Time, error) {
 	currTxDbWrappers := make([]dbTypes.TxDBWrapper, len(txEventResp.Txs))
 	var blockTime *time.Time
 

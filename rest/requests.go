@@ -3,9 +3,10 @@ package rest
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/nodersteam/cosmos-indexer/cosmos/modules/tx"
 	"io"
 	"net/http"
+
+	"github.com/nodersteam/cosmos-indexer/cosmos/modules/tx"
 )
 
 var apiEndpoints = map[string]string{

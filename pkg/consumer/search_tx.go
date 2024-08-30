@@ -3,6 +3,7 @@ package consumer
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/nodersteam/cosmos-indexer/db/models"
 	"github.com/nodersteam/cosmos-indexer/pkg/repository"
 	"github.com/redis/go-redis/v9"
@@ -20,7 +21,8 @@ type searchTxPublisher struct {
 }
 
 func NewSearchTxConsumer(rdb *redis.Client,
-	blocksTopic string, repo repository.Search) *searchTxPublisher {
+	blocksTopic string, repo repository.Search,
+) *searchTxPublisher {
 	return &searchTxPublisher{rdb: rdb, repo: repo, topic: blocksTopic}
 }
 

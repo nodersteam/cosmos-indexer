@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"testing"
+	"time"
+
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog/log"
 	"github.com/shopspring/decimal"
-	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +44,8 @@ func TestTransactionsPerPeriod(t *testing.T) {
 		result expected
 		after  func()
 	}{
-		{"success",
+		{
+			"success",
 			func() {
 				postgresConn.Exec(context.Background(), sampleData, time.Now().UTC().Add(-1*time.Hour))
 			},
@@ -53,7 +55,8 @@ func TestTransactionsPerPeriod(t *testing.T) {
 				postgresConn.Exec(context.Background(), `delete from txes`)
 			},
 		},
-		{"success_no24h",
+		{
+			"success_no24h",
 			func() {
 				postgresConn.Exec(context.Background(), sampleData, time.Now().UTC().Add(-25*time.Hour))
 			},
@@ -63,7 +66,8 @@ func TestTransactionsPerPeriod(t *testing.T) {
 				postgresConn.Exec(context.Background(), `delete from txes`)
 			},
 		},
-		{"success_no24h_no30d",
+		{
+			"success_no24h_no30d",
 			func() {
 				postgresConn.Exec(context.Background(), sampleData, time.Now().UTC().Add(-24*31*time.Hour))
 			},
@@ -503,7 +507,8 @@ INSERT INTO message_event_attributes(id, message_event_id, value, index, message
 		request  params
 		response expected
 	}{
-		{"success",
+		{
+			"success",
 			params{
 				values:   []string{"2"},
 				msgTypes: []string{"/cosmos.gov.v1.MsgVote"},
@@ -515,11 +520,14 @@ INSERT INTO message_event_attributes(id, message_event_id, value, index, message
 				1,
 			},
 		},
-		{"success - multiple types",
+		{
+			"success - multiple types",
 			params{
 				values: []string{"celestia1v8hn5eu8e2amqq2t2hfu8cv3wknmvxvvsryggh"},
-				msgTypes: []string{"/cosmos.bank.v1beta1.MsgSend",
-					"/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward"},
+				msgTypes: []string{
+					"/cosmos.bank.v1beta1.MsgSend",
+					"/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward",
+				},
 				limit:  10,
 				offset: 0,
 			},
@@ -528,11 +536,14 @@ INSERT INTO message_event_attributes(id, message_event_id, value, index, message
 				2,
 			},
 		},
-		{"success - multiple types, limits",
+		{
+			"success - multiple types, limits",
 			params{
 				values: []string{"celestia1v8hn5eu8e2amqq2t2hfu8cv3wknmvxvvsryggh"},
-				msgTypes: []string{"/cosmos.bank.v1beta1.MsgSend",
-					"/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward"},
+				msgTypes: []string{
+					"/cosmos.bank.v1beta1.MsgSend",
+					"/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward",
+				},
 				limit:  1,
 				offset: 0,
 			},
@@ -541,7 +552,8 @@ INSERT INTO message_event_attributes(id, message_event_id, value, index, message
 				1,
 			},
 		},
-		{"success - multiple values",
+		{
+			"success - multiple values",
 			params{
 				values:   []string{"2", "celestia1v8hn5eu8e2amqq2t2hfu8cv3wknmvxvvsryggh"},
 				msgTypes: []string{"/cosmos.gov.v1.MsgVote"},
@@ -553,7 +565,8 @@ INSERT INTO message_event_attributes(id, message_event_id, value, index, message
 				1,
 			},
 		},
-		{"success - not exists",
+		{
+			"success - not exists",
 			params{
 				values:   []string{"7", "celestia1v8hn5eu8e2amqq2t2hfu8cv3wknmvxvvsryggh"},
 				msgTypes: []string{"/cosmos.gov.v1.MsgVote"},

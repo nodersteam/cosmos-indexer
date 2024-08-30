@@ -1,10 +1,11 @@
 package clients
 
 import (
+	"testing"
+
 	"github.com/nodersteam/cosmos-indexer/config"
 	"github.com/nodersteam/cosmos-indexer/probe"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func Test_GetTxsByBlockHeight(t *testing.T) {

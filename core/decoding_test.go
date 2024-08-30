@@ -2,9 +2,12 @@ package core
 
 import (
 	"context"
-	txv1beta1 "cosmossdk.io/api/cosmos/tx/v1beta1"
 	"encoding/base64"
-	//celblob "github.com/celestiaorg/go-square/blob"
+	"testing"
+
+	txv1beta1 "cosmossdk.io/api/cosmos/tx/v1beta1"
+
+	// celblob "github.com/celestiaorg/go-square/blob"
 	"github.com/cosmos/cosmos-sdk/codec"
 	cosmosTx "github.com/cosmos/cosmos-sdk/types/tx"
 	"github.com/nodersteam/cosmos-indexer/config"
@@ -14,7 +17,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/proto"
 	anypb "google.golang.org/protobuf/types/known/anypb"
-	"testing"
 )
 
 func TestInAppTxDecoder2(t *testing.T) {
@@ -59,7 +61,7 @@ func TestInAppTxDecoder(t *testing.T) {
 
 	grpcConn, err := grpc.Dial(
 		"celestia-grpc.noders.services:11090",
-		//grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{})),
+		// grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{})),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.ForceCodec(codec.NewProtoCodec(nil).
 			GRPCCodec())),

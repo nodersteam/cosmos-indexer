@@ -379,7 +379,7 @@ func IndexNewBlock(db *gorm.DB, block models.Block, txs []TxDBWrapper, indexerCo
 		}
 
 		// saving signatures
-		for ind, _ := range signaturesCopy {
+		for ind := range signaturesCopy {
 			signaturesCopy[ind].BlockID = uint64(block.ID)
 		}
 		if len(signaturesCopy) > 0 {
@@ -458,7 +458,7 @@ func IndexNewBlock(db *gorm.DB, block models.Block, txs []TxDBWrapper, indexerCo
 				config.Log.Warnf("Error getting/creating Tip DB object. %v %v", err, tx.AuthInfo.Tip)
 				err = dbTransaction.Rollback().Error
 				if err != nil {
-					config.Log.Warnf("error during rollback %v %v", err)
+					config.Log.Warnf("error during rollback %v", err)
 				}
 				continue
 			}
@@ -468,7 +468,7 @@ func IndexNewBlock(db *gorm.DB, block models.Block, txs []TxDBWrapper, indexerCo
 				config.Log.Warnf("Error getting/creating Fee DB object. %v %v", err, tx.AuthInfo.Fee)
 				err = dbTransaction.Rollback().Error
 				if err != nil {
-					config.Log.Warnf("error during rollback %v %v", err)
+					config.Log.Warnf("error during rollback %v", err)
 				}
 				continue
 			}
@@ -481,7 +481,7 @@ func IndexNewBlock(db *gorm.DB, block models.Block, txs []TxDBWrapper, indexerCo
 						config.Log.Warnf("Error getting/creating signerInfo.Address DB object %v %v", err, signerInfo.Address)
 						err = dbTransaction.Rollback().Error
 						if err != nil {
-							config.Log.Warnf("error during rollback %v %v", err)
+							config.Log.Warnf("error during rollback %v", err)
 						}
 						continue
 					}
@@ -491,7 +491,7 @@ func IndexNewBlock(db *gorm.DB, block models.Block, txs []TxDBWrapper, indexerCo
 					config.Log.Warnf("Error getting/creating signerInfo DB object %v %v", err, signerInfo)
 					err = dbTransaction.Rollback().Error
 					if err != nil {
-						config.Log.Warnf("error during rollback %v %v", err)
+						config.Log.Warnf("error during rollback %v", err)
 					}
 					continue
 				}
@@ -501,7 +501,7 @@ func IndexNewBlock(db *gorm.DB, block models.Block, txs []TxDBWrapper, indexerCo
 				config.Log.Warnf("Error getting/creating authInfo DB object. %v %v", err, tx.AuthInfo)
 				err = dbTransaction.Rollback().Error
 				if err != nil {
-					config.Log.Warnf("error during rollback %v %v", err)
+					config.Log.Warnf("error during rollback %v", err)
 				}
 				continue
 			}
@@ -513,7 +513,7 @@ func IndexNewBlock(db *gorm.DB, block models.Block, txs []TxDBWrapper, indexerCo
 				config.Log.Warnf("Error getting/creating txResponse DB object. %v %v", err, tx.TxResponse)
 				err = dbTransaction.Rollback().Error
 				if err != nil {
-					config.Log.Warnf("error during rollback %v %v", err)
+					config.Log.Warnf("error during rollback %v", err)
 				}
 				continue
 			}

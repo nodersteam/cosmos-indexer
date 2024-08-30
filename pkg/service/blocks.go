@@ -26,7 +26,7 @@ type blocks struct {
 	blocksRepo repository.Blocks
 }
 
-func NewBlocks(blocksRepo repository.Blocks) *blocks {
+func NewBlocks(blocksRepo repository.Blocks) Blocks {
 	return &blocks{blocksRepo: blocksRepo}
 }
 

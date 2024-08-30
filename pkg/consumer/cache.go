@@ -23,7 +23,8 @@ type cacheConsumer struct {
 }
 
 func NewCacheConsumer(blocks repository.BlocksCache, blocksCh chan *model.BlockInfo,
-	txCh chan *models.Tx, txs repository.TransactionsCache) CacheConsumer {
+	txCh chan *models.Tx, txs repository.TransactionsCache,
+) CacheConsumer {
 	return &cacheConsumer{blocks: blocks, blocksCh: blocksCh, txCh: txCh, txs: txs}
 }
 

@@ -1,8 +1,9 @@
 package models
 
 import (
-	"github.com/nodersteam/cosmos-indexer/pkg/model"
 	"time"
+
+	"github.com/nodersteam/cosmos-indexer/pkg/model"
 
 	"github.com/lib/pq"
 

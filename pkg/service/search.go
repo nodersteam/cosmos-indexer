@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+
 	"github.com/nodersteam/cosmos-indexer/pkg/model"
 	"github.com/nodersteam/cosmos-indexer/pkg/repository"
 )
@@ -15,7 +16,7 @@ type search struct {
 	repo repository.Search
 }
 
-func NewSearch(repo repository.Search) *search {
+func NewSearch(repo repository.Search) Search {
 	return &search{repo: repo}
 }
 

@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/nodersteam/cosmos-indexer/db/models"
 	"time"
+
+	"github.com/nodersteam/cosmos-indexer/db/models"
 
 	"github.com/nodersteam/cosmos-indexer/pkg/model"
 	"github.com/redis/go-redis/v9"

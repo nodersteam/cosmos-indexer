@@ -3,8 +3,9 @@ package repository
 import (
 	"context"
 	"fmt"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"regexp"
+
+	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/nodersteam/cosmos-indexer/pkg/model"
 	"github.com/rs/zerolog/log"
@@ -33,7 +34,8 @@ func (a *search) AddHash(ctx context.Context, hash string, hashType string, bloc
 	searchResult := model.SearchResult{TxHash: hash, Type: hashType, BlockHeight: fmt.Sprintf("%d", blockHeight)}
 
 	filter := bson.D{primitive.E{Key: "tx_hash", Value: hash}, primitive.E{Key: "type", Value: hashType}}
-	update := bson.D{{"$set",
+	update := bson.D{{
+		"$set",
 		searchResult,
 	}}
 

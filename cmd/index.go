@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gorm.io/gorm/clause"
 	"io"
 	"net"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"gorm.io/gorm/clause"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/nodersteam/cosmos-indexer/clients"
@@ -346,8 +347,8 @@ func runIndexer(ctx context.Context, idxr *Indexer, runSrv bool, startBlock, end
 
 	if runSrv {
 		log.Info().Msgf("running Blocks server %d", idxr.cfg.Server.Port)
-		grpcServUrl := fmt.Sprintf(":%d", idxr.cfg.Server.Port)
-		listener, err := net.Listen("tcp", grpcServUrl)
+		grpcServURL := fmt.Sprintf(":%d", idxr.cfg.Server.Port)
+		listener, err := net.Listen("tcp", grpcServURL)
 		if err != nil {
 			config.Log.Fatal("Unable to run listener", err)
 		}
@@ -359,9 +360,8 @@ func runIndexer(ctx context.Context, idxr *Indexer, runSrv bool, startBlock, end
 			grpc.MaxRecvMsgSize(size))
 		blocks.RegisterBlocksServiceServer(grpcServer, blocksServer)
 		go func() {
-			log.Info().Msgf("blocks server started: " + grpcServUrl)
+			log.Info().Msgf("blocks server started: " + grpcServURL)
 			if err = grpcServer.Serve(listener); err != nil {
-				log.Panic()
 				grpcServer.GracefulStop()
 				return
 			}
@@ -484,13 +484,14 @@ func runIndexer(ctx context.Context, idxr *Indexer, runSrv bool, startBlock, end
 
 func mongoDBMigrate(ctx context.Context,
 	db *mongo.Database,
-	pg *pgxpool.Pool, search repository.Search) (*mongo.Database, error) {
+	pg *pgxpool.Pool, search repository.Search,
+) (*mongo.Database, error) {
 	m := migrate.NewMigrate(db, migrate.Migration{
 		Version:     1,
 		Description: "add unique index idx_txhash_type",
 		Up: func(ctx context.Context, db *mongo.Database) error {
 			opt := options.Index().SetName("idx_txhash_type").SetUnique(true)
-			keys := bson.D{{"tx_hash", 1}, {"type", 1}}
+			keys := bson.D{{"tx_hash", 1}, {"type", 1}} //nolint
 			model := mongo.IndexModel{Keys: keys, Options: opt}
 			_, err := db.Collection("search").Indexes().CreateOne(ctx, model)
 			if err != nil {
@@ -514,15 +515,14 @@ func mongoDBMigrate(ctx context.Context,
 			rows, err := pg.Query(ctx, `select distinct hash from txes`)
 			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				return err
-			} else {
-				for rows.Next() {
-					var txHash string
-					if err = rows.Scan(&txHash); err != nil {
-						return err
-					}
-					if err = search.AddHash(context.Background(), txHash, "transaction", 0); err != nil {
-						log.Err(err).Msgf("Failed to add hash to index")
-					}
+			}
+			for rows.Next() {
+				var txHash string
+				if err = rows.Scan(&txHash); err != nil {
+					return err
+				}
+				if err = search.AddHash(context.Background(), txHash, "transaction", 0); err != nil {
+					log.Err(err).Msgf("Failed to add hash to index")
 				}
 			}
 
@@ -530,15 +530,14 @@ func mongoDBMigrate(ctx context.Context,
 			rows, err = pg.Query(ctx, `select distinct block_hash from blocks`)
 			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				return err
-			} else {
-				for rows.Next() {
-					var txHash string
-					if err = rows.Scan(&txHash); err != nil {
-						return err
-					}
-					if err = search.AddHash(context.Background(), txHash, "block", 0); err != nil {
-						log.Err(err).Msgf("Failed to add hash to index")
-					}
+			}
+			for rows.Next() {
+				var txHash string
+				if err = rows.Scan(&txHash); err != nil {
+					return err
+				}
+				if err = search.AddHash(context.Background(), txHash, "block", 0); err != nil {
+					log.Err(err).Msgf("Failed to add hash to index")
 				}
 			}
 
@@ -558,15 +557,14 @@ func mongoDBMigrate(ctx context.Context,
 			rows, err := pg.Query(ctx, `select distinct hash from txes`)
 			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				return err
-			} else {
-				for rows.Next() {
-					var txHash string
-					if err = rows.Scan(&txHash); err != nil {
-						return err
-					}
-					if err = search.AddHash(context.Background(), txHash, "transaction", 0); err != nil {
-						log.Err(err).Msgf("Failed to add hash to index")
-					}
+			}
+			for rows.Next() {
+				var txHash string
+				if err = rows.Scan(&txHash); err != nil {
+					return err
+				}
+				if err = search.AddHash(context.Background(), txHash, "transaction", 0); err != nil {
+					log.Err(err).Msgf("Failed to add hash to index")
 				}
 			}
 
@@ -574,16 +572,15 @@ func mongoDBMigrate(ctx context.Context,
 			rows, err = pg.Query(ctx, `select distinct block_hash,height from blocks`)
 			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				return err
-			} else {
-				for rows.Next() {
-					var txHash string
-					var blockHeight int64
-					if err = rows.Scan(&txHash, &blockHeight); err != nil {
-						return err
-					}
-					if err = search.AddHash(context.Background(), txHash, "block", blockHeight); err != nil {
-						log.Err(err).Msgf("Failed to add hash to index")
-					}
+			}
+			for rows.Next() {
+				var txHash string
+				var blockHeight int64
+				if err = rows.Scan(&txHash, &blockHeight); err != nil {
+					return err
+				}
+				if err = search.AddHash(context.Background(), txHash, "block", blockHeight); err != nil {
+					log.Err(err).Msgf("Failed to add hash to index")
 				}
 			}
 
@@ -592,7 +589,8 @@ func mongoDBMigrate(ctx context.Context,
 		Down: func(ctx context.Context, db *mongo.Database) error {
 			// ignoring, what's done is done.
 			return nil
-		}})
+		},
+	})
 	if err := m.Up(ctx, migrate.AllAvailable); err != nil {
 		return nil, err
 	}
@@ -667,8 +665,8 @@ func (idxr *Indexer) processBlocks(wg *sync.WaitGroup,
 	chainID uint,
 	blockEventFilterRegistry blockEventFilterRegistries,
 	blocksCh chan *model.BlockInfo,
-	cache repository.Cache) {
-
+	cache repository.Cache,
+) {
 	defer close(blockEventsDataChan)
 	defer close(txDataChan)
 	defer wg.Done()
@@ -779,8 +777,8 @@ func (idxr *Indexer) doDBUpdates(wg *sync.WaitGroup,
 	blockEventsDataChan chan *blockEventsDBData,
 	txsCh chan *models.Tx,
 	txRepo repository.Txs,
-	cache repository.PubSubCache) {
-
+	cache repository.PubSubCache,
+) {
 	blocksProcessed := 0
 	dbWrites := 0
 	dbReattempts := 0
