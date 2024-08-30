@@ -142,8 +142,10 @@ func TestTxs_TransactionRawLog(t *testing.T) {
 				require.NoError(t, err)
 			},
 			func() {
-				postgresConn.Exec(context.Background(), `delete from txes`)
-				postgresConn.Exec(context.Background(), `delete from tx_responses`)
+				_, err := postgresConn.Exec(context.Background(), `delete from txes`)
+				require.NoError(t, err)
+				_, err = postgresConn.Exec(context.Background(), `delete from tx_responses`)
+				require.NoError(t, err)
 			},
 		},
 		{
@@ -151,12 +153,16 @@ func TestTxs_TransactionRawLog(t *testing.T) {
 			expected{err: fmt.Errorf("not found")},
 			params{"hash7"},
 			func() {
-				postgresConn.Exec(ctx, txResponses)
-				postgresConn.Exec(ctx, txes, time.Now().UTC())
+				_, err := postgresConn.Exec(ctx, txResponses)
+				require.NoError(t, err)
+				_, err = postgresConn.Exec(ctx, txes, time.Now().UTC())
+				require.NoError(t, err)
 			},
 			func() {
-				postgresConn.Exec(context.Background(), `delete from txes`)
-				postgresConn.Exec(context.Background(), `delete from tx_responses`)
+				_, err := postgresConn.Exec(context.Background(), `delete from txes`)
+				require.NoError(t, err)
+				_, err = postgresConn.Exec(context.Background(), `delete from tx_responses`)
+				require.NoError(t, err)
 			},
 		},
 	}
@@ -203,12 +209,18 @@ func TestTxs_TransactionSigners(t *testing.T) {
 	require.NoError(t, err)
 
 	defer func() {
-		postgresConn.Exec(context.Background(), `delete from txes`)
-		postgresConn.Exec(context.Background(), `delete from addresses`)
-		postgresConn.Exec(context.Background(), `delete from tx_signer_addresses`)
-		postgresConn.Exec(context.Background(), `delete from tx_signer_info`)
-		postgresConn.Exec(context.Background(), `delete from tx_signer_infos`)
-		postgresConn.Exec(context.Background(), `delete from tx_auth_info`)
+		_, err := postgresConn.Exec(context.Background(), `delete from txes`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from addresses`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from tx_signer_addresses`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from tx_signer_info`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from tx_signer_infos`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from tx_auth_info`)
+		require.NoError(t, err)
 	}()
 
 	txsRepo := NewTxs(postgresConn)
@@ -221,7 +233,8 @@ func TestTxs_TransactionSigners(t *testing.T) {
 
 func TestTxs_Transactions_ByHash(t *testing.T) {
 	defer func() {
-		postgresConn.Exec(context.Background(), `delete from txes`)
+		_, err := postgresConn.Exec(context.Background(), `delete from txes`)
+		require.NoError(t, err)
 	}()
 
 	txes := `INSERT INTO txes (id, hash, code, block_id, signatures, timestamp, memo, timeout_height, extension_options, non_critical_extension_options, auth_info_id, tx_response_id)
@@ -243,7 +256,8 @@ func TestTxs_Transactions_ByHash(t *testing.T) {
 
 func TestTxs_ChartTransactionsByHour(t *testing.T) {
 	defer func() {
-		postgresConn.Exec(context.Background(), `delete from txes`)
+		_, err := postgresConn.Exec(context.Background(), `delete from txes`)
+		require.NoError(t, err)
 	}()
 
 	txes := `INSERT INTO txes (id, hash, code, block_id, signatures, timestamp, memo, timeout_height, extension_options, non_critical_extension_options, auth_info_id, tx_response_id)
@@ -275,9 +289,12 @@ func TestTxs_ChartTransactionsByHour(t *testing.T) {
 
 func TestTxs_ChartTransactionsVolume(t *testing.T) {
 	defer func() {
-		postgresConn.Exec(context.Background(), `delete from txes`)
-		postgresConn.Exec(context.Background(), `delete from fees`)
-		postgresConn.Exec(context.Background(), `delete from denoms`)
+		_, err := postgresConn.Exec(context.Background(), `delete from txes`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from fees`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from denoms`)
+		require.NoError(t, err)
 	}()
 
 	batch := pgx.Batch{}
@@ -358,9 +375,12 @@ func TestTxs_ExtractNumber(t *testing.T) {
 
 func TestTxs_VolumePerPeriod(t *testing.T) {
 	defer func() {
-		postgresConn.Exec(context.Background(), `delete from txes`)
-		postgresConn.Exec(context.Background(), `delete from fees`)
-		postgresConn.Exec(context.Background(), `delete from denoms`)
+		_, err := postgresConn.Exec(context.Background(), `delete from txes`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from fees`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from denoms`)
+		require.NoError(t, err)
 	}()
 
 	batch := pgx.Batch{}
@@ -416,13 +436,20 @@ func TestTxs_VolumePerPeriod(t *testing.T) {
 
 func TestTxs_TransactionsByEventValue(t *testing.T) {
 	defer func() {
-		postgresConn.Exec(context.Background(), `delete from txes`)
-		postgresConn.Exec(context.Background(), `delete from message_types`)
-		postgresConn.Exec(context.Background(), `delete from message_event_types`)
-		postgresConn.Exec(context.Background(), `delete from messages`)
-		postgresConn.Exec(context.Background(), `delete from message_events`)
-		postgresConn.Exec(context.Background(), `delete from message_event_attribute_keys`)
-		postgresConn.Exec(context.Background(), `delete from message_event_attributes`)
+		_, err := postgresConn.Exec(context.Background(), `delete from txes`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from message_types`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from message_event_types`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from messages`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from message_events`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from message_event_attribute_keys`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from message_event_attributes`)
+		require.NoError(t, err)
 	}()
 
 	txes := `INSERT INTO txes (id, hash, code, block_id, signatures, timestamp, memo, timeout_height,
@@ -601,8 +628,10 @@ INSERT INTO message_event_attributes(id, message_event_id, value, index, message
 
 func TestTxs_DelegatesByValidator(t *testing.T) {
 	defer func() {
-		postgresConn.Exec(context.Background(), `delete from txes`)
-		postgresConn.Exec(context.Background(), `delete from tx_delegate_aggregateds`)
+		_, err := postgresConn.Exec(context.Background(), `delete from txes`)
+		require.NoError(t, err)
+		_, err = postgresConn.Exec(context.Background(), `delete from tx_delegate_aggregateds`)
+		require.NoError(t, err)
 	}()
 
 	txes := `INSERT INTO txes (id, hash, code, block_id, signatures, timestamp, memo, timeout_height, extension_options, non_critical_extension_options, auth_info_id, tx_response_id)
