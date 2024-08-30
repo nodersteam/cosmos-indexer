@@ -888,15 +888,15 @@ func (idxr *Indexer) saveAggregated(ctx context.Context, txRepo repository.Txs, 
 	txDelegateAggregated.BlockHeight = tx.Block.Height
 
 	isMsgDelegate := false
+	isMsgUndelegate := false
 	for _, event := range events {
 		if event.MessageType == "/cosmos.staking.v1beta1.MsgDelegate" {
 			isMsgDelegate = true
-			txDelegateAggregated.TxType = event.MessageType
-		}
-		if !isMsgDelegate {
-			continue
+		} else if event.MessageType == "/cosmos.staking.v1beta1.MsgUndelegate" {
+			isMsgUndelegate = true
 		}
 
+		txDelegateAggregated.TxType = event.MessageType
 		if event.Key == "validator" {
 			txDelegateAggregated.Validator = event.Value
 		}
@@ -906,7 +906,11 @@ func (idxr *Indexer) saveAggregated(ctx context.Context, txRepo repository.Txs, 
 			if err != nil {
 				return err
 			}
-			txDelegateAggregated.Amount = amount
+			if isMsgDelegate {
+				txDelegateAggregated.Amount = amount
+			} else if isMsgUndelegate {
+				txDelegateAggregated.Amount = amount.Neg()
+			}
 			txDelegateAggregated.Denom = denom
 		}
 
@@ -915,7 +919,7 @@ func (idxr *Indexer) saveAggregated(ctx context.Context, txRepo repository.Txs, 
 		}
 	}
 
-	if isMsgDelegate {
+	if isMsgDelegate || isMsgUndelegate {
 		return idxr.db.Transaction(func(tx *gorm.DB) error {
 			err = tx.Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "hash"}},
