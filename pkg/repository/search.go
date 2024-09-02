@@ -3,12 +3,12 @@ package repository
 import (
 	"context"
 	"fmt"
+	"github.com/rs/zerolog/log"
 	"regexp"
 
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/nodersteam/cosmos-indexer/pkg/model"
-	"github.com/rs/zerolog/log"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -47,7 +47,7 @@ func (a *search) AddHash(ctx context.Context, hash string, hashType string, bloc
 	if err != nil {
 		return err
 	}
-	log.Debug().Msgf("inserted new collection with ID %d", res)
+	log.Debug().Msgf("upserted count %d %s %s %d", res.UpsertedCount, hash, hashType, blockHeight)
 	return nil
 }
 

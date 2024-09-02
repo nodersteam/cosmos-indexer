@@ -38,6 +38,10 @@ func (suite *SearchRepositorySuite) TestCreateBlock() {
 	err = suite.repository.AddHash(ctx, "Qd74FlZyrasFfT97l3KLoEiKAu4bb7zPwQ30N+ZrYbI=",
 		"block", 778391)
 	suite.Assert().NoError(err)
+	// duplicate
+	err = suite.repository.AddHash(ctx, "Qd74FlZyrasFfT97l3KLoEiKAu4bb7zPwQ30N+ZrYbI=",
+		"block", 778391)
+	suite.Assert().NoError(err)
 
 	result, err := suite.repository.BlockByHeight(ctx, int64(91))
 	suite.Assert().NoError(err)

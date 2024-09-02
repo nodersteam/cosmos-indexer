@@ -437,12 +437,13 @@ func runIndexer(ctx context.Context, idxr *Indexer, runSrv bool, startBlock, end
 
 		// migration
 		go func() {
-			config.Log.Info("Starting migration")
+			log.Info().Msgf("Starting migration")
 			db, err = mongoDBMigrate(ctx, db, dbConnRepo, searchRepo)
 			if err != nil {
+				log.Err(err).Msgf("Migration failed")
 				panic(err)
 			}
-			config.Log.Info("Migration complete")
+			log.Info().Msgf("Migration completed")
 		}()
 	}
 
@@ -515,11 +516,14 @@ func mongoDBMigrate(ctx context.Context,
 		Version:     1,
 		Description: "add unique index idx_txhash_type",
 		Up: func(ctx context.Context, db *mongo.Database) error {
+			config.Log.Info("starting v1 migration")
+
 			opt := options.Index().SetName("idx_txhash_type").SetUnique(true)
 			keys := bson.D{{"tx_hash", 1}, {"type", 1}} //nolint
 			model := mongo.IndexModel{Keys: keys, Options: opt}
 			_, err := db.Collection("search").Indexes().CreateOne(ctx, model)
 			if err != nil {
+				log.Err(err).Msgf("error creating index for v1 migration")
 				return err
 			}
 
@@ -528,6 +532,7 @@ func mongoDBMigrate(ctx context.Context,
 		Down: func(ctx context.Context, db *mongo.Database) error {
 			_, err := db.Collection("search").Indexes().DropOne(ctx, "idx_txhash_type")
 			if err != nil {
+				log.Err(err).Msgf("error dropping index for v1 migration")
 				return err
 			}
 			return nil
@@ -547,7 +552,7 @@ func mongoDBMigrate(ctx context.Context,
 					return err
 				}
 				if err = search.AddHash(context.Background(), txHash, "transaction", 0); err != nil {
-					log.Err(err).Msgf("Failed to add hash to index")
+					log.Err(err).Msgf("Failed to add hash to index transaction %s", txHash)
 				}
 			}
 
@@ -562,7 +567,7 @@ func mongoDBMigrate(ctx context.Context,
 					return err
 				}
 				if err = search.AddHash(context.Background(), txHash, "block", 0); err != nil {
-					log.Err(err).Msgf("Failed to add hash to index")
+					log.Err(err).Msgf("Failed to add hash to index block %s", txHash)
 				}
 			}
 
