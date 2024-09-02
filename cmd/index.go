@@ -434,18 +434,18 @@ func runIndexer(ctx context.Context, idxr *Indexer, runSrv bool, startBlock, end
 				log.Err(err).Msgf("error on tx search consumer closing")
 			}
 		}(ctx)
-
-		// migration
-		go func() {
-			log.Info().Msgf("Starting migration")
-			db, err = mongoDBMigrate(ctx, db, dbConnRepo, searchRepo)
-			if err != nil {
-				log.Err(err).Msgf("Migration failed")
-				panic(err)
-			}
-			log.Info().Msgf("Migration completed")
-		}()
 	}
+
+	// migration
+	go func() {
+		log.Info().Msgf("Starting migration")
+		db, err = mongoDBMigrate(ctx, db, dbConnRepo, searchRepo)
+		if err != nil {
+			log.Err(err).Msgf("Migration failed")
+			panic(err)
+		}
+		log.Info().Msgf("Migration completed")
+	}()
 
 	if idxr.cfg.Base.GenesisIndex {
 		log.Info().Msgf("found genesis-index param enabled.")
@@ -518,10 +518,15 @@ func mongoDBMigrate(ctx context.Context,
 		Up: func(ctx context.Context, db *mongo.Database) error {
 			config.Log.Info("starting v1 migration")
 
+			err := db.Collection("search").Drop(ctx)
+			if err != nil {
+				return err
+			}
+
 			opt := options.Index().SetName("idx_txhash_type").SetUnique(true)
 			keys := bson.D{{"tx_hash", 1}, {"type", 1}} //nolint
-			model := mongo.IndexModel{Keys: keys, Options: opt}
-			_, err := db.Collection("search").Indexes().CreateOne(ctx, model)
+			mdl := mongo.IndexModel{Keys: keys, Options: opt}
+			_, err = db.Collection("search").Indexes().CreateOne(ctx, mdl)
 			if err != nil {
 				log.Err(err).Msgf("error creating index for v1 migration")
 				return err
