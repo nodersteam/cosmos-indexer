@@ -3,6 +3,7 @@ package tx
 import (
 	"encoding/hex"
 	"fmt"
+	"github.com/rs/zerolog/log"
 	"reflect"
 	"strings"
 	"time"
@@ -79,19 +80,35 @@ func (a *parser) ProcessRPCBlockByHeightTXs(messageTypeFilters []filter.MessageT
 		}
 
 		logs := types.ABCIMessageLogs{}
-
 		// Failed TXs do not have proper JSON in the .Log field, causing ParseABCILogs to fail to unmarshal the logs
 		// We can entirely ignore failed TXs in downstream parsers, because according to the Cosmos specification, a single failed message in a TX fails the whole TX
-		if txResult.Code == 0 {
+		if txResult.Code == 0 && strings.Trim(txResult.Log, "") != "" {
 			logs, err = types.ParseABCILogs(txResult.Log)
 			if err != nil {
-				return nil, blockTime, fmt.Errorf("logs could not be parsed")
+				log.Warn().Msgf("logs cannot be parsed  using events instead %+v, %s", txResult, err.Error())
 			}
 		}
 
 		txHash := tendermintTx.Hash()
 
 		var messagesRaw [][]byte
+
+		events := make(types.StringEvents, 0)
+		if len(logs) == 0 {
+			for _, event := range txResult.Events {
+				attr := make([]types.Attribute, 0)
+				for _, attribute := range event.Attributes {
+					attr = append(attr, types.Attribute{
+						Key:   attribute.Key,
+						Value: attribute.Value,
+					})
+				}
+				events = append(events, types.StringEvent{
+					Type:       event.Type,
+					Attributes: attr,
+				})
+			}
+		}
 
 		// Get the Messages and Message Logs
 		for msgIdx := range txFull.Body.Messages {
@@ -120,7 +137,11 @@ func (a *parser) ProcessRPCBlockByHeightTXs(messageTypeFilters []filter.MessageT
 				currMessages = append(currMessages, msg)
 				msgEvents := types.StringEvents{}
 				if txResult.Code == 0 {
-					msgEvents = logs[msgIdx].Events
+					if len(logs) > 0 {
+						msgEvents = logs[msgIdx].Events
+					} else {
+						msgEvents = events
+					}
 				}
 
 				currTxLog := txtypes.LogMessage{
