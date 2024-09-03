@@ -3,11 +3,12 @@ package tx
 import (
 	"encoding/hex"
 	"fmt"
-	"github.com/rs/zerolog/log"
 	"reflect"
 	"strings"
 	"time"
 	"unsafe"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/nodersteam/cosmos-indexer/core"
 	"github.com/shopspring/decimal"

@@ -3,8 +3,9 @@ package repository
 import (
 	"context"
 	"fmt"
-	"github.com/rs/zerolog/log"
 	"regexp"
+
+	"github.com/rs/zerolog/log"
 
 	"go.mongodb.org/mongo-driver/mongo/options"
 
