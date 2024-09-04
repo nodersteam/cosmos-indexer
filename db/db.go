@@ -149,17 +149,32 @@ FROM txes
          LEFT JOIN message_event_attributes amount ON message_events.id = amount.message_event_id
          LEFT JOIN message_event_attribute_keys amount_key ON amount.message_event_attribute_key_id = amount_key.id
 WHERE message_event_attribute_keys.key IN ('sender','receiver') and message_types.message_type='/cosmos.bank.v1beta1.MsgSend'
-GROUP BY message_event_attributes.value, txes.hash, txes.timestamp, txes.id, blocks.height, message_types.message_type, message_event_attribute_keys.key;
-
-CREATE INDEX IF NOT EXISTS idx_transactions_normalized_account
-    ON transactions_normalized (account);
-CREATE INDEX IF NOT EXISTS idx_account_tx_hash 
-	ON transactions_normalized(account, tx_hash);
+GROUP BY message_event_attributes.value, txes.hash, txes.timestamp, txes.id, blocks.height, message_types.message_type, message_event_attribute_keys.key;;
 `
 	err := db.Exec(query).Error
 	if err != nil {
 		return err
 	}
+
+	queryIndexes := `CREATE INDEX IF NOT EXISTS idx_transactions_normalized_account
+    ON transactions_normalized (account);
+CREATE INDEX IF NOT EXISTS idx_account_tx_hash 
+	ON transactions_normalized(account, tx_hash);`
+	if err = db.Exec(queryIndexes).Error; err != nil {
+		return err
+	}
+
+	queryIndexes = `DROP INDEX IF EXISTS idx_account_tx_hash;`
+	if err = db.Exec(queryIndexes).Error; err != nil {
+		return err
+	}
+
+	queryIndexes = `CREATE UNIQUE INDEX IF NOT EXISTS idx_account_tx_hash 
+	ON transactions_normalized(account, tx_hash, tx_type);`
+	if err = db.Exec(queryIndexes).Error; err != nil {
+		return err
+	}
+
 	return nil
 }
 
