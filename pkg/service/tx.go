@@ -2,8 +2,12 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/shopspring/decimal"
 
 	"github.com/nodersteam/cosmos-indexer/db/models"
 	"github.com/rs/zerolog/log"
@@ -175,7 +179,16 @@ func (s *txs) TxCountByAccounts(ctx context.Context, accounts []string) ([]*mode
 }
 
 func (s *txs) AccountInfo(ctx context.Context, account string) (*model.AccountInfo, error) {
-	return s.txRepo.AccountInfo(ctx, account)
+	info, err := s.txRepo.AccountInfo(ctx, account)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return &model.AccountInfo{
+			TotalTransactions:    0,
+			FirstTransactionDate: time.Now(),
+			TotalSpent:           model.DecCoin{Amount: decimal.Zero, Denom: ""},
+			TotalReceived:        model.DecCoin{Amount: decimal.Zero, Denom: ""},
+		}, nil
+	}
+	return info, err
 }
 
 func (s *txs) DelegatesByValidator(ctx context.Context, from, to time.Time, valoperAddress string,
