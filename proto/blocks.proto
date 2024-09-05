@@ -431,7 +431,7 @@ message GetVotesByAccountsRequest{
 }
 
 message GetVotesByAccountsResponse{
-  repeated TxByHash data = 1;
+  repeated VotesTransaction data = 1;
   Result result = 2;
 }
 

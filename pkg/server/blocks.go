@@ -601,10 +601,17 @@ func (r *blocksServer) GetVotesByAccounts(ctx context.Context,
 		return &pb.GetVotesByAccountsResponse{}, err
 	}
 
-	data := make([]*pb.TxByHash, 0)
+	data := make([]*pb.VotesTransaction, 0)
 	for _, tx := range transactions {
-		transaction := tx
-		data = append(data, r.txToProto(transaction))
+		data = append(data, &pb.VotesTransaction{
+			BlockHeight: tx.BlockHeight,
+			TxHash:      tx.TxHash,
+			ProposalId:  int32(tx.ProposalID),
+			Voter:       tx.Voter,
+			Option:      tx.Option,
+			Weight:      tx.Weight,
+			Time:        timestamppb.New(tx.Timestamp),
+		})
 	}
 
 	return &pb.GetVotesByAccountsResponse{
