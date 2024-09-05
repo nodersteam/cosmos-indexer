@@ -149,7 +149,7 @@ FROM txes
          LEFT JOIN message_event_attributes amount ON message_events.id = amount.message_event_id
          LEFT JOIN message_event_attribute_keys amount_key ON amount.message_event_attribute_key_id = amount_key.id
 WHERE message_event_attribute_keys.key IN ('sender','receiver') and message_types.message_type='/cosmos.bank.v1beta1.MsgSend'
-GROUP BY message_event_attributes.value, txes.hash, txes.timestamp, txes.id, blocks.height, message_types.message_type, message_event_attribute_keys.key;;
+GROUP BY message_event_attributes.value, txes.hash, txes.timestamp, txes.id, blocks.height, message_types.message_type, message_event_attribute_keys.key;
 `
 	err := db.Exec(query).Error
 	if err != nil {
@@ -172,6 +172,43 @@ CREATE INDEX IF NOT EXISTS idx_account_tx_hash
 	queryIndexes = `CREATE UNIQUE INDEX IF NOT EXISTS idx_account_tx_hash 
 	ON transactions_normalized(account, tx_hash, tx_type);`
 	if err = db.Exec(queryIndexes).Error; err != nil {
+		return err
+	}
+
+	// TODO interval updates via external config
+	queryMaterialViewVotes := `CREATE MATERIALIZED VIEW IF NOT EXISTS votes_normalized AS
+	select inn.id, inn.timestamp, inn.hash, inn.height,
+		   max(inn.voter) as voter,
+		   max(inn.option) as option_raw,
+		   max(inn.proposal_id) as proposal_id,
+		   (regexp_matches(max(inn.option), 'option:(\w+)', 'g'))[1] AS option,
+		   (regexp_matches(max(inn.option), 'weight:"(\d+\.\d+)"', 'g'))[1] AS weight from (
+	select txes.id,
+		   txes.timestamp,
+		   txes.hash,
+		   blocks.height,
+		   case when message_event_attribute_keys.key = 'voter' then message_event_attributes.value end as voter,
+		   case when message_event_attribute_keys.key = 'option' then message_event_attributes.value end as option,
+		   case when message_event_attribute_keys.key = 'proposal_id' then message_event_attributes.value end as proposal_id
+	from txes
+			 left join blocks on txes.block_id = blocks.id
+			 left join messages on txes.id = messages.tx_id
+			 left join message_types on messages.message_type_id = message_types.id
+			 left join message_events on messages.id = message_events.message_id
+			 left join message_event_types on message_events.message_event_type_id=message_event_types.id
+			 left join message_event_attributes on message_events.id = message_event_attributes.message_event_id
+			 left join message_event_attribute_keys on message_event_attributes.message_event_attribute_key_id = message_event_attribute_keys.id
+	where message_types.message_type IN ('/cosmos.gov.v1beta1.MsgVote', '/cosmos.authz.v1beta1.MsgExec') 
+	and type = 'proposal_vote'
+	order by txes.id, messages.message_index, message_events.index, message_event_attributes.index) as inn
+	group by inn.id, inn.timestamp, inn.hash, inn.height;
+`
+	if err = db.Exec(queryMaterialViewVotes).Error; err != nil {
+		return err
+	}
+
+	queryMaterialViewVotesIndex := `CREATE UNIQUE INDEX IF NOT EXISTS idx_votes_normalized_hash_id on votes_normalized(id, hash);`
+	if err = db.Exec(queryMaterialViewVotesIndex).Error; err != nil {
 		return err
 	}
 
