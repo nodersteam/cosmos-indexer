@@ -954,10 +954,17 @@ func (r *txs) GetVotes(ctx context.Context, accountAddress string) ([]*model.Vot
 	data := make([]*model.VotesTransaction, 0)
 	for rows.Next() {
 		var voteTx model.VotesTransaction
+		var proposalID string
 		if err = rows.Scan(&voteTx.Timestamp, &voteTx.TxHash, &voteTx.BlockHeight,
-			&voteTx.Voter, &voteTx.ProposalID, &voteTx.Option, &voteTx.Weight); err != nil {
+			&voteTx.Voter, &proposalID, &voteTx.Option, &voteTx.Weight); err != nil {
 			return nil, err
 		}
+
+		proposal, err := strconv.Atoi(proposalID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid proposal ID: %s", proposalID)
+		}
+		voteTx.ProposalID = proposal
 
 		data = append(data, &voteTx)
 	}
