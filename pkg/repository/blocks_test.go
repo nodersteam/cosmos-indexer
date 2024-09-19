@@ -228,26 +228,49 @@ VALUES
 	_, err = postgresConn.Exec(context.Background(), sampleSignatures)
 	require.NoError(t, err)
 
+	validatorForTest := "val_addr1"
+	emptyVal := ""
+
 	tests := []struct {
-		name   string
-		height int64
-		result expected
+		name       string
+		height     int64
+		valAddress *string
+		result     expected
 	}{
 		{
 			"success",
 			1000,
+			nil,
 			expected{total: 3, bl: []*model.BlockSigners{
 				{BlockHeight: 1000, Validator: "val_addr1"},
 				{BlockHeight: 1000, Validator: "val_addr2"},
 				{BlockHeight: 1000, Validator: "val_addr3"},
 			}},
 		},
-		{"not found", 12222, expected{total: 0}},
+		{
+			"success",
+			1000,
+			&emptyVal,
+			expected{total: 3, bl: []*model.BlockSigners{
+				{BlockHeight: 1000, Validator: "val_addr1"},
+				{BlockHeight: 1000, Validator: "val_addr2"},
+				{BlockHeight: 1000, Validator: "val_addr3"},
+			}},
+		},
+		{
+			"success_with_validator",
+			1000,
+			&validatorForTest,
+			expected{total: 1, bl: []*model.BlockSigners{
+				{BlockHeight: 1000, Validator: "val_addr1"},
+			}},
+		},
+		{"not found", 12222, nil, expected{total: 0}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			txsRepo := NewBlocks(postgresConn)
-			res, total, err := txsRepo.BlockSignatures(context.Background(), tt.height, 100, 0)
+			res, total, err := txsRepo.BlockSignatures(context.Background(), tt.height, tt.valAddress, 100, 0)
 			if tt.result.err != nil && err == nil {
 				require.Fail(t, "expected error, got nil")
 			}

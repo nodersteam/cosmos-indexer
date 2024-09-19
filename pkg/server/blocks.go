@@ -193,7 +193,7 @@ func (r *blocksServer) blockToProto(bl *model.BlockInfo) *pb.Block {
 }
 
 func (r *blocksServer) BlockSignatures(ctx context.Context, in *pb.BlockSignaturesRequest) (*pb.BlockSignaturesResponse, error) {
-	signs, all, err := r.srv.BlockSignatures(ctx, in.BlockHeight, in.Limit.Limit, in.Limit.Offset)
+	signs, all, err := r.srv.BlockSignatures(ctx, in.BlockHeight, in.ValAddress, in.Limit.Limit, in.Limit.Offset)
 	if err != nil {
 		return &pb.BlockSignaturesResponse{}, err
 	}

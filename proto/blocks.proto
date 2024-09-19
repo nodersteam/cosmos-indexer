@@ -241,6 +241,7 @@ message GetBlocksResponse{
 message BlockSignaturesRequest {
   int64 blockHeight = 1;
   Limit limit = 2;
+  optional string val_address = 3;
 }
 
 message BlockSignaturesResponse {
