@@ -33,6 +33,8 @@ jobs:
         environment: ['test-env']
       fail-fast: false
 
+    environment: ${{ matrix.environment }}
+
     steps:
       - name: Deploy to remote server
         uses: appleboy/ssh-action@master
