@@ -10,6 +10,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
+	goqu "github.com/doug-martin/goqu/v9"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nodersteam/cosmos-indexer/pkg/model"
 )
@@ -20,7 +21,7 @@ type Blocks interface {
 	GetBlockValidators(ctx context.Context, block int32) ([]string, error)
 	TotalBlocks(ctx context.Context, to time.Time) (*model.TotalBlocks, error)
 	Blocks(ctx context.Context, limit int64, offset int64) ([]*model.BlockInfo, int64, error)
-	BlockSignatures(ctx context.Context, height int64,
+	BlockSignatures(ctx context.Context, height int64, valAddress *string,
 		limit int64, offset int64) ([]*model.BlockSigners, int64, error)
 	BlockUptime(ctx context.Context, blockWindow, height int64,
 		validatorAddr string) (float32, error)
@@ -361,14 +362,26 @@ func (r *blocks) blockGas(ctx context.Context, height int64) (decimal.Decimal, d
 	return gasUsed, gasWanted, nil
 }
 
-func (r *blocks) BlockSignatures(ctx context.Context, height int64, limit int64, offset int64) ([]*model.BlockSigners, int64, error) {
-	query := `select blocks.height, 
-       			block_signatures.validator_address, 
-       			block_signatures.timestamp from block_signatures
-         		left join blocks on block_signatures.block_id = blocks.id
-                where blocks.height=$1`
-	queryLimit := query + ` limit $2 offset $3`
-	rows, err := r.db.Query(ctx, queryLimit, height, limit, offset)
+func (r *blocks) BlockSignatures(ctx context.Context, height int64, valAddress *string, limit int64, offset int64) ([]*model.BlockSigners, int64, error) {
+	dialect := goqu.Select("blocks.height", "block_signatures.validator_address", "block_signatures.timestamp").
+		From(goqu.T("block_signatures")).
+		LeftJoin(
+			goqu.T("blocks"),
+			goqu.On(goqu.Ex{"block_signatures.block_id": goqu.I("blocks.id")}))
+
+	whereExp := make([]goqu.Expression, 0)
+	whereExp = append(whereExp, goqu.C("height").Eq(height))
+	if valAddress != nil && *valAddress != "" {
+		whereExp = append(whereExp, goqu.C("validator_address").Eq(*valAddress))
+	}
+	dialect = dialect.Where(whereExp...)
+	dialect = dialect.Limit(uint(limit)).Offset(uint(offset))
+
+	queryLimit, _, err := dialect.ToSQL()
+	if err != nil {
+		return nil, 0, err
+	}
+	rows, err := r.db.Query(ctx, queryLimit)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -383,11 +396,15 @@ func (r *blocks) BlockSignatures(ctx context.Context, height int64, limit int64,
 		res = append(res, &in)
 	}
 
-	queryAll := `select count(block_signatures.validator_address) 
-				from block_signatures
-         		left join blocks on block_signatures.block_id = blocks.id
-                where blocks.height=$1`
-	row := r.db.QueryRow(ctx, queryAll, height)
+	queryAll, _, err := dialect.
+		ClearSelect().
+		ClearLimit().
+		Select(goqu.COUNT("block_signatures.validator_address")).ToSQL()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	row := r.db.QueryRow(ctx, queryAll)
 	var all int64
 	if err = row.Scan(&all); err != nil {
 		return nil, 0, err

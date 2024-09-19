@@ -1,18 +1,53 @@
+@NonCPS
+def killall_jobs() {
+	def jobname = env.JOB_NAME
+	def buildnum = env.BUILD_NUMBER.toInteger()
+	def killnums = ""
+	def job = Jenkins.instance.getItemByFullName(jobname)
+	def fixed_job_name = env.JOB_NAME.replace('%2F','/')
+
+	for (build in job.builds) {
+		if (!build.isBuilding()) { continue; }
+		if (buildnum == build.getNumber().toInteger()) { continue; println "equals" }
+		if (buildnum < build.getNumber().toInteger()) { continue; println "newer" }
+
+		echo "Kill task = ${build}"
+
+		killnums += "#" + build.getNumber().toInteger() + ", "
+
+		build.doStop();
+	}
+
+	if (killnums != "") {
+		slackSend color: "danger", channel: "#jenkins", message: "Killing task(s) ${fixed_job_name} ${killnums} in favor of #${buildnum}, ignore following failed builds for ${killnums}"
+	}
+	echo "Done killing"
+}
+
 pipeline {
     agent {
         label 'BUILD'
     }
     triggers {
+        // Запуск при любом пуше в репозиторий (включая теги)
         githubPush()
     }
     options {
-        skipDefaultCheckout()
+        skipDefaultCheckout()  // Отключаем автоматический чекаут
     }
 
     stages {
         stage('Deploy') {
+        if (env.TAG_NAME) {
             steps {
-                buildAndDeployApplication()
+                    script {
+                        // Чекаут коммита тега
+                        checkout([$class: 'GitSCM',
+                            branches: [[name: "refs/tags/${env.GIT_TAG_NAME}"]]
+                        ])
+                    }
+                    buildAndDeployApplication()  // Запуск основного процесса сборки и деплоя
+                }
             }
         }
     }
@@ -158,7 +193,7 @@ void runApplication() {
     def appStatus = sh(script: "docker ps -a | grep ${env.DOCKER_APP} && echo true || echo false", returnStdout: true).trim()
     if (env.agent == "celestia") {
         env.baseStartBlock = "1954077"
-        env.probeRpc = "http://65.109.54.91:11657"
+        env.probeRpc = "https://rpc-celestia.mzonder.com"
         env.probeAccountPrefix = "celestia"
         env.probeChainID = "celestia"
         env.probeChainName = "celestia"

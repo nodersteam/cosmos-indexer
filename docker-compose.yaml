@@ -87,13 +87,13 @@ services:
       cosmos-indexer index \
       --log.pretty = true \
       --log.level = info \
-      --base.start-block 2209750 \
+      --base.start-block 1795888 \
       --base.end-block -1 \
       --base.throttling 2.005 \
       --base.rpc-workers 10 \
       --base.index-transactions true \
       --base.index-block-events true \
-      --probe.rpc http://65.109.54.91:11657  \
+      --probe.rpc https://rpc-celestia.mzonder.com  \
       --probe.account-prefix celestia \
       --probe.chain-id celestia \
       --probe.chain-name celestia \
