@@ -38,8 +38,10 @@ pipeline {
 
     stages {
         stage('Deploy') {
-        if (env.TAG_NAME) {
             steps {
+                    when {
+                        expression { return env.TAG_NAME != null }
+                    }
                     script {
                         // Чекаут коммита тега
                         checkout([$class: 'GitSCM',
@@ -47,7 +49,6 @@ pipeline {
                         ])
                     }
                     buildAndDeployApplication()  // Запуск основного процесса сборки и деплоя
-                }
             }
         }
     }
