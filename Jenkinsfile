@@ -39,16 +39,13 @@ pipeline {
     stages {
         stage('Deploy') {
             steps {
-                    when {
-                        expression { return env.TAG_NAME != null }
-                    }
-                    script {
-                        // Чекаут коммита тега
-                        checkout([$class: 'GitSCM',
-                            branches: [[name: "refs/tags/${env.GIT_TAG_NAME}"]]
-                        ])
-                    }
-                    buildAndDeployApplication()  // Запуск основного процесса сборки и деплоя
+                script {
+                    // Чекаут коммита тега
+                    checkout([$class: 'GitSCM',
+                        branches: [[name: "refs/tags/${env.GIT_TAG_NAME}"]]
+                    ])
+                }
+                buildAndDeployApplication()  // Запуск основного процесса сборки и деплоя
             }
         }
     }
