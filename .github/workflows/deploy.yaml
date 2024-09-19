@@ -110,11 +110,11 @@ jobs:
               /bin/sh -c "/bin/cosmos-indexer index \
                 --log.pretty=true \
                 --log.level=info \
-                --base.start-block=${{ env.BASE_START_BLOCK }} \
-                --probe.rpc=${{ env.PROBE_RPC }} \
-                --probe.account-prefix=${{ env.PROBE_ACCOUNT_PREFIX }} \
-                --probe.chain-id=${{ env.PROBE_CHAIN_ID }} \
-                --probe.chain-name=${{ env.PROBE_CHAIN_NAME }} \
+                --base.start-block=${{ vars.BASE_START_BLOCK }} \
+                --probe.rpc=${{ vars.PROBE_RPC }} \
+                --probe.account-prefix=${{ vars.PROBE_ACCOUNT_PREFIX }} \
+                --probe.chain-id=${{ vars.PROBE_CHAIN_ID }} \
+                --probe.chain-name=${{ vars.PROBE_CHAIN_NAME }} \
                 --database.host=postgres \
                 --database.database=postgres \
                 --database.user=${{ secrets.POSTGRES_USER }} \
