@@ -52,7 +52,7 @@ jobs:
             fi
 
             # Check if the Postgres container is running, and start it if not
-            if [ $(sudo docker ps -a --filter "name=postgres" --format "{{.Names}}" | wc -l) -eq 0 ]; then
+            if [ $(sudo docker ps -a --filter "name=^postgres$" --format "{{.Names}}" | wc -l) -eq 0 ]; then
               sudo docker run -d --name postgres \
                 --restart unless-stopped \
                 --shm-size=1g \
@@ -68,7 +68,7 @@ jobs:
             fi
 
             # Check if the Redis container is running, and start it if not
-            if [ $(sudo docker ps -a --filter "name=redis" --format "{{.Names}}" | wc -l) -eq 0 ]; then
+            if [ $(sudo docker ps -a --filter "name=^redis$" --format "{{.Names}}" | wc -l) -eq 0 ]; then
               sudo docker run -d --name redis \
                 --restart unless-stopped \
                 -p 6379:6379 \
@@ -79,7 +79,7 @@ jobs:
             fi
 
             # Check if the MongoDB container is running, and start it if not
-            if [ $(sudo docker ps -a --filter "name=mongo" --format "{{.Names}}" | wc -l) -eq 0 ]; then
+            if [ $(sudo docker ps -a --filter "name=^mongo$" --format "{{.Names}}" | wc -l) -eq 0 ]; then
               sudo docker run -d --name mongo \
                 --restart unless-stopped \
                 --shm-size=1g \
@@ -94,7 +94,7 @@ jobs:
             fi
 
             # Check if the cosmos-indexer container is running, and remove it if it exists
-            if [ $(sudo docker ps -a --filter "name=cosmos-indexer" --format "{{.Names}}" | wc -l) -ne 0 ]; then
+            if [ $(sudo docker ps -a --filter "name=^cosmos-indexer$" --format "{{.Names}}" | wc -l) -ne 0 ]; then
               sudo docker rm -f cosmos-indexer
               echo "Cosmos-indexer container removed."
             fi
