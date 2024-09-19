@@ -39,9 +39,6 @@ pipeline {
     stages {
         stage('Deploy') {
         if (env.TAG_NAME) {
-            when {
-                expression { return env.GIT_TAG_NAME != null }
-            }
             steps {
                     script {
                         // Чекаут коммита тега
@@ -196,7 +193,7 @@ void runApplication() {
     def appStatus = sh(script: "docker ps -a | grep ${env.DOCKER_APP} && echo true || echo false", returnStdout: true).trim()
     if (env.agent == "celestia") {
         env.baseStartBlock = "1954077"
-        env.probeRpc = "http://65.109.54.91:11657"
+        env.probeRpc = "https://rpc-celestia.mzonder.com"
         env.probeAccountPrefix = "celestia"
         env.probeChainID = "celestia"
         env.probeChainName = "celestia"

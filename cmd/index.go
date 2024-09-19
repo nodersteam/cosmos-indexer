@@ -447,6 +447,7 @@ func runIndexer(ctx context.Context, idxr *Indexer, runSrv bool, startBlock, end
 		log.Info().Msgf("Migration completed")
 	}()
 
+	// for genesis indexing running only blocks below --start.block
 	if idxr.cfg.Base.GenesisIndex {
 		log.Info().Msgf("found genesis-index param enabled.")
 		steps := idxr.cfg.Base.GenesisBlocksStep
@@ -474,33 +475,33 @@ func runIndexer(ctx context.Context, idxr *Indexer, runSrv bool, startBlock, end
 
 			counter += blocksToProceed
 		}
-	}
+	} else {
+		var blockEnqueueFunction func(chan *core.EnqueueData) error
+		switch {
+		// Default block enqueue functions based on config values
+		case idxr.cfg.Base.ReindexMessageType != "":
+			blockEnqueueFunction, err = core.GenerateMsgTypeEnqueueFunction(idxr.db, *idxr.cfg, dbChainID,
+				idxr.cfg.Base.ReindexMessageType, startBlock, endBlock)
+			if err != nil {
+				config.Log.Fatal("Failed to generate block enqueue function", err)
+			}
+		case idxr.cfg.Base.BlockInputFile != "":
+			blockEnqueueFunction, err = core.GenerateBlockFileEnqueueFunction(*idxr.cfg, idxr.cfg.Base.BlockInputFile, idxr.rpcClient)
+			if err != nil {
+				config.Log.Fatal("Failed to generate block enqueue function", err)
+			}
+		default:
+			blockEnqueueFunction, err = core.GenerateDefaultEnqueueFunction(idxr.db, *idxr.cfg, dbChainID,
+				idxr.rpcClient, startBlock, endBlock)
+			if err != nil {
+				config.Log.Fatal("Failed to generate block enqueue function", err)
+			}
+		}
 
-	var blockEnqueueFunction func(chan *core.EnqueueData) error
-	switch {
-	// Default block enqueue functions based on config values
-	case idxr.cfg.Base.ReindexMessageType != "":
-		blockEnqueueFunction, err = core.GenerateMsgTypeEnqueueFunction(idxr.db, *idxr.cfg, dbChainID,
-			idxr.cfg.Base.ReindexMessageType, startBlock, endBlock)
+		err = blockEnqueueFunction(blockEnqueueChan)
 		if err != nil {
-			config.Log.Fatal("Failed to generate block enqueue function", err)
+			config.Log.Fatal("Block enqueue failed", err)
 		}
-	case idxr.cfg.Base.BlockInputFile != "":
-		blockEnqueueFunction, err = core.GenerateBlockFileEnqueueFunction(*idxr.cfg, idxr.cfg.Base.BlockInputFile, idxr.rpcClient)
-		if err != nil {
-			config.Log.Fatal("Failed to generate block enqueue function", err)
-		}
-	default:
-		blockEnqueueFunction, err = core.GenerateDefaultEnqueueFunction(idxr.db, *idxr.cfg, dbChainID,
-			idxr.rpcClient, startBlock, endBlock)
-		if err != nil {
-			config.Log.Fatal("Failed to generate block enqueue function", err)
-		}
-	}
-
-	err = blockEnqueueFunction(blockEnqueueChan)
-	if err != nil {
-		config.Log.Fatal("Block enqueue failed", err)
 	}
 
 	close(blockEnqueueChan)
@@ -790,8 +791,14 @@ func (idxr *Indexer) processBlocks(wg *sync.WaitGroup,
 			}
 		}
 		blocksCh <- idxr.toBlockInfo(block)
-		if err := cache.PublishBlock(context.Background(), &block); err != nil {
-			config.Log.Error("Failed to publish block info", err)
+
+		latestBlock, err := idxr.rpcClient.GetLatestBlockHeight()
+		if err == nil {
+			if block.Height > latestBlock {
+				if err := cache.PublishBlock(context.Background(), &block); err != nil {
+					config.Log.Error("Failed to publish block info", err)
+				}
+			}
 		}
 	}
 }
@@ -883,6 +890,7 @@ func (idxr *Indexer) doDBUpdates(wg *sync.WaitGroup,
 
 				// TODO decomposite everything
 				txsCh <- &transaction
+				// TODO don't publish old transactions
 				if err := cache.PublishTx(context.Background(), &transaction); err != nil {
 					config.Log.Error(err.Error())
 				}
