@@ -1,6 +1,7 @@
 name: Build and Deploy Cosmos-Indexer Docker Image
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - '*'
