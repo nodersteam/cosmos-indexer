@@ -475,6 +475,8 @@ func runIndexer(ctx context.Context, idxr *Indexer, runSrv bool, startBlock, end
 
 			counter += blocksToProceed
 		}
+
+		<-ctx.Done() // TODO find better place
 	} else {
 		var blockEnqueueFunction func(chan *core.EnqueueData) error
 		switch {
