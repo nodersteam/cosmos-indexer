@@ -44,6 +44,9 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.KEY }}
           script: |
+            # Docker Login on the remote server
+            echo ${{ secrets.GITHUB_TOKEN }} | sudo docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
             # Check if the Docker network 'vpcbr' exists, and create it if not
             if [ $(sudo docker network ls | grep vpcbr | wc -l) -eq 0 ]; then
               sudo docker network create --driver=bridge --subnet=10.5.0.0/16 --gateway=10.5.0.1 vpcbr
