@@ -93,7 +93,7 @@ services:
       --base.rpc-workers 10 \
       --base.index-transactions true \
       --base.index-block-events true \
-      --probe.rpc http://65.109.54.91:11657  \
+      --probe.rpc https://rpc-celestia.mzonder.com  \
       --probe.account-prefix celestia \
       --probe.chain-id celestia \
       --probe.chain-name celestia \
