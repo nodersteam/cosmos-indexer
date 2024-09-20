@@ -1,0 +1,135 @@
+name: Build and Deploy Cosmos-Indexer Docker Image
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Docker Login
+        run: |
+          echo ${{ secrets.GITHUB_TOKEN }} | sudo docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build Docker Image
+        run: sudo docker build -t ghcr.io/${{ github.repository }}/cosmos-indexer:${{ github.ref_name }} --build-arg TARGETPLATFORM=linux/amd64 .
+
+      - name: Push Docker Image
+        run: sudo docker push ghcr.io/${{ github.repository }}/cosmos-indexer:${{ github.ref_name }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        environment: ['test-env']
+      fail-fast: false
+
+    environment: ${{ matrix.environment }}
+
+    steps:
+      - name: Deploy to remote server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          port: ${{ secrets.PORT }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.KEY }}
+          script: |
+            # Docker Login on the remote server
+            echo ${{ secrets.GITHUB_TOKEN }} | sudo docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            # Check if the Docker network 'indexer_network' exists, and create it if not
+            if [ $(sudo docker network ls | grep indexer_network | wc -l) -eq 0 ]; then
+              sudo docker network create --driver=bridge indexer_network
+            else
+              echo "Network 'indexer_network' already exists."
+            fi
+
+            # Check if the Postgres container is running, and start it if not
+            if [ $(sudo docker ps -a --filter "name=^postgres$" --format "{{.Names}}" | wc -l) -eq 0 ]; then
+              sudo docker run -d --name postgres \
+                --restart unless-stopped \
+                --shm-size=1g \
+                -v indexer_postgres:/var/lib/postgresql/data \
+                -e POSTGRES_USER=${{ secrets.POSTGRES_USER }} \
+                -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
+                -e POSTGRES_DB=postgres \
+                -p 5432:5432 \
+                --network indexer_network \
+                postgres:15-alpine
+            else
+              echo "Postgres container is already running."
+            fi
+
+            # Check if the Redis container is running, and start it if not
+            if [ $(sudo docker ps -a --filter "name=^redis$" --format "{{.Names}}" | wc -l) -eq 0 ]; then
+              sudo docker run -d --name redis \
+                --restart unless-stopped \
+                -p 6379:6379 \
+                --network indexer_network \
+                redis:7.4.0-alpine
+            else
+              echo "Redis container is already running."
+            fi
+
+            # Check if the MongoDB container is running, and start it if not
+            if [ $(sudo docker ps -a --filter "name=^mongo$" --format "{{.Names}}" | wc -l) -eq 0 ]; then
+              sudo docker run -d --name mongo \
+                --restart unless-stopped \
+                --shm-size=1g \
+                -e MONGO_INITDB_DATABASE=search_indexer \
+                -e MONGO_INITDB_ROOT_USERNAME=${{ secrets.MONGO_USER }} \
+                -e MONGO_INITDB_ROOT_PASSWORD=${{ secrets.MONGO_PASSWORD }} \
+                -v indexer_mongo:/data/db \
+                -p 27017:27017 \
+                --network indexer_network \
+                mongo:5.0.2
+            else
+              echo "MongoDB container is already running."
+            fi
+
+            # Check if the cosmos-indexer container is running, and remove it if it exists
+            if [ $(sudo docker ps -a --filter "name=^cosmos-indexer$" --format "{{.Names}}" | wc -l) -ne 0 ]; then
+              sudo docker rm -f cosmos-indexer
+              echo "Cosmos-indexer container removed."
+            fi
+
+            # Start a new cosmos-indexer container with environment variables
+            sudo docker run -d --name cosmos-indexer \
+              --restart unless-stopped \
+              --network indexer_network \
+              ghcr.io/${{ github.repository }}/cosmos-indexer:${{ github.ref_name }} \
+              /bin/sh -c "/bin/cosmos-indexer index \
+                --log.pretty=true \
+                --log.level=info \
+                --base.start-block=${{ vars.BASE_START_BLOCK }} \
+                --base.end-block -1 \
+                --base.throttling 2.005 \
+                --base.rpc-workers 10 \
+                --base.index-transactions true \
+                --base.index-block-events true \
+                --probe.rpc=${{ vars.PROBE_RPC }} \
+                --probe.account-prefix=${{ vars.PROBE_ACCOUNT_PREFIX }} \
+                --probe.chain-id=${{ vars.PROBE_CHAIN_ID }} \
+                --probe.chain-name=${{ vars.PROBE_CHAIN_NAME }} \
+                --database.host=postgres \
+                --database.database=postgres \
+                --database.user=${{ secrets.POSTGRES_USER }} \
+                --database.password=${{ secrets.POSTGRES_PASSWORD }} \
+                --server.port=9002 \
+                --redis.addr=redis:6379 \
+                --mongo.addr=mongodb://${{ secrets.MONGO_USER }}:${{ secrets.MONGO_PASSWORD }}@mongo:27017 \
+                --mongo.db=search_indexer"
+
+            # Clean up unused Docker resources
+            sudo docker system prune -f
