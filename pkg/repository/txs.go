@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/doug-martin/goqu/v9"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nodersteam/cosmos-indexer/db/models"
@@ -275,55 +277,71 @@ func (r *txs) TransactionRawLog(ctx context.Context, hash string) ([]byte, error
 }
 
 func (r *txs) Transactions(ctx context.Context, limit int64, offset int64, filter *TxsFilter) ([]*models.Tx, int64, error) {
-	query := `
-	   select 
-	       txes.id as tx_id,
-	       txes.signatures as signatures,
-		   txes.hash,
-		   txes.code as tx_code,
-		   txes.block_id,
-		   txes.timestamp,
-		   txes.memo,
-		   txes.timeout_height,
-		   txes.extension_options,
-		   txes.non_critical_extension_options,
-		   txes.auth_info_id,
-		   txes.tx_response_id,
-		   COALESCE(auf.gas_limit,0), 
-		   COALESCE(auf.payer,''), 
-		   COALESCE(auf.granter,''), 
-		   COALESCE(tip.tipper,''),
-		   COALESCE(resp.code,0) as tx_resp_code,
-		   COALESCE(resp.gas_used,0) as tx_res_gas_used,
-		   COALESCE(resp.gas_wanted,0) as tx_res_gas_wanted,
-		   COALESCE(resp.time_stamp, '2000-01-01 00:00:00'), 
-		   COALESCE(resp.codespace,''), 
-		   COALESCE(resp.data,''), 
-		   COALESCE(resp.info,'')
-		from txes
-			 left join tx_auth_info au on auth_info_id = au.id
-			 left join tx_auth_info_fee auf on au.fee_id = auf.id
-			 left join tx_tip tip on au.tip_id = tip.id
-			 left join tx_responses resp on tx_response_id = resp.id
-			 left join blocks on txes.block_id = blocks.id`
+	dialect := goqu.Select(
+		goqu.I("txes.id").As("tx_id"),
+		goqu.I("txes.signatures").As("signatures"),
+		goqu.I("txes.hash"),
+		goqu.I("txes.code").As("tx_code"),
+		goqu.I("txes.block_id"),
+		goqu.I("txes.timestamp"),
+		goqu.I("txes.memo"),
+		goqu.I("txes.timeout_height"),
+		goqu.I("txes.extension_options"),
+		goqu.I("txes.non_critical_extension_options"),
+		goqu.I("txes.auth_info_id"),
+		goqu.I("txes.tx_response_id"),
+		goqu.COALESCE(goqu.I("auf.gas_limit"), 0),
+		goqu.COALESCE(goqu.I("auf.payer"), ""),
+		goqu.COALESCE(goqu.I("auf.granter"), ""),
+		goqu.COALESCE(goqu.I("tip.tipper"), ""),
+		goqu.COALESCE(goqu.I("resp.code"), 0).As("tx_resp_code"),
+		goqu.COALESCE(goqu.I("resp.gas_used"), 0).As("tx_res_gas_used"),
+		goqu.COALESCE(goqu.I("resp.gas_wanted"), 0).As("tx_res_gas_wanted"),
+		goqu.COALESCE(goqu.I("resp.time_stamp"), time.Now()),
+		goqu.COALESCE(goqu.I("resp.codespace"), ""),
+		goqu.COALESCE(goqu.I("resp.data"), ""),
+		goqu.COALESCE(goqu.I("resp.info"), "")).
+		From("txes").
+		LeftJoin(
+			goqu.T("tx_auth_info").As("au"),
+			goqu.On(goqu.Ex{"auth_info_id": goqu.I("au.id")}),
+		).
+		LeftJoin(
+			goqu.T("tx_auth_info_fee").As("auf"),
+			goqu.On(goqu.Ex{"au.fee_id": goqu.I("auf.id")}),
+		).
+		LeftJoin(
+			goqu.T("tx_tip").As("tip"),
+			goqu.On(goqu.Ex{"au.tip_id": goqu.I("tip.id")}),
+		).
+		LeftJoin(
+			goqu.T("tx_responses").As("resp"),
+			goqu.On(goqu.Ex{"tx_response_id": goqu.I("resp.id")}),
+		).
+		LeftJoin(
+			goqu.T("blocks"),
+			goqu.On(goqu.Ex{"txes.block_id": goqu.I("blocks.id")}),
+		)
 
-	var rows pgx.Rows
-	var err error
-	if filter != nil { // TODO make it more flexible
+	if filter != nil {
 		if filter.TxBlockHeight != nil {
-			query += ` WHERE blocks.height = $1`
-			query += ` ORDER BY txes.timestamp desc LIMIT $2 OFFSET $3`
-			rows, err = r.db.Query(ctx, query, *filter.TxBlockHeight, limit, offset)
+			dialect = dialect.Where(goqu.I("blocks.height").Eq(*filter.TxBlockHeight))
 		} else if filter.TxHash != nil && len(*filter.TxHash) > 0 {
-			query += ` WHERE hash = $1`
-			query += ` ORDER BY txes.timestamp desc LIMIT $2 OFFSET $3`
-			rows, err = r.db.Query(ctx, query, *filter.TxHash, limit, offset)
+			dialect = dialect.Where(goqu.I("hash").Eq(*filter.TxHash))
 		}
-	} else {
-		query += ` ORDER BY txes.timestamp desc LIMIT $1 OFFSET $2`
-		rows, err = r.db.Query(ctx, query, limit, offset)
 	}
 
+	dialect = dialect.
+		Order(goqu.I("blocks.height").Desc(), goqu.I("txes.timestamp").Desc()).
+		Limit(uint(limit)).Offset(uint(offset))
+
+	query, args, err := dialect.ToSQL()
+	if err != nil {
+		log.Err(err).Msgf("Transactions Query builder error")
+		return nil, 0, err
+	}
+
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		log.Err(err).Msgf("Transactions Query error")
 		return nil, 0, err
