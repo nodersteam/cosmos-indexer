@@ -255,8 +255,6 @@ func runIndexer(ctx context.Context, idxr *Indexer, runSrv bool, startBlock, end
 	// We will periodically check the buffer size to monitor performance so we can optimize later.
 	rpcQueryThreads := int(idxr.cfg.Base.RPCWorkers)
 	if rpcQueryThreads == 0 {
-		rpcQueryThreads = 4
-	} else if rpcQueryThreads > 64 {
 		rpcQueryThreads = 64
 	}
 
@@ -275,7 +273,7 @@ func runIndexer(ctx context.Context, idxr *Indexer, runSrv bool, startBlock, end
 	// This block consolidates all base RPC requests into one worker.
 	// Workers read from the enqueued blocks and query blockchain data from the RPC server.
 	var blockRPCWaitGroup sync.WaitGroup
-	blockRPCWorkerDataChan := make(chan core.IndexerBlockEventData, 10)
+	blockRPCWorkerDataChan := make(chan core.IndexerBlockEventData, 10000)
 
 	worker := core.NewBlockRPCWorker(
 		idxr.cfg.Probe.ChainID,
@@ -284,9 +282,14 @@ func runIndexer(ctx context.Context, idxr *Indexer, runSrv bool, startBlock, end
 		idxr.db,
 		idxr.rpcClient,
 	)
+
+	ignoreExisting := false
+	if idxr.cfg.Base.GenesisIndex {
+		ignoreExisting = true
+	}
 	for i := 0; i < rpcQueryThreads; i++ {
 		blockRPCWaitGroup.Add(1)
-		go worker.Worker(&blockRPCWaitGroup, blockEnqueueChan, blockRPCWorkerDataChan)
+		go worker.Worker(&blockRPCWaitGroup, blockEnqueueChan, blockRPCWorkerDataChan, ignoreExisting)
 	}
 
 	go func() {
@@ -403,16 +406,29 @@ func runIndexer(ctx context.Context, idxr *Indexer, runSrv bool, startBlock, end
 	}
 
 	wg.Add(1)
-	go idxr.processBlocks(
-		&wg,
-		core.HandleFailedBlock,
-		blockRPCWorkerDataChan,
-		blockEventsDataChan,
-		txDataChan,
-		dbChainID,
-		indexer.blockEventFilterRegistries,
-		chBlocks,
-		*cache)
+	if idxr.cfg.Base.GenesisIndex {
+		go idxr.processBlocks(
+			&wg,
+			core.HandleFailedBlock,
+			blockRPCWorkerDataChan,
+			blockEventsDataChan,
+			txDataChan,
+			dbChainID,
+			indexer.blockEventFilterRegistries,
+			chBlocks,
+			nil)
+	} else {
+		go idxr.processBlocks(
+			&wg,
+			core.HandleFailedBlock,
+			blockRPCWorkerDataChan,
+			blockEventsDataChan,
+			txDataChan,
+			dbChainID,
+			indexer.blockEventFilterRegistries,
+			chBlocks,
+			cache)
+	}
 
 	wg.Add(1)
 	go idxr.doDBUpdates(&wg, txDataChan, blockEventsDataChan, chTxs, repoTxs, cache)
@@ -706,7 +722,7 @@ func (idxr *Indexer) processBlocks(wg *sync.WaitGroup,
 	chainID uint,
 	blockEventFilterRegistry blockEventFilterRegistries,
 	blocksCh chan *model.BlockInfo,
-	cache repository.Cache,
+	cache *repository.Cache,
 ) {
 	defer close(blockEventsDataChan)
 	defer close(txDataChan)
@@ -794,12 +810,9 @@ func (idxr *Indexer) processBlocks(wg *sync.WaitGroup,
 		}
 		blocksCh <- idxr.toBlockInfo(block)
 
-		latestBlock, err := idxr.rpcClient.GetLatestBlockHeight()
-		if err == nil {
-			if block.Height > latestBlock {
-				if err := cache.PublishBlock(context.Background(), &block); err != nil {
-					config.Log.Error("Failed to publish block info", err)
-				}
+		if cache != nil {
+			if err := cache.PublishBlock(context.Background(), &block); err != nil {
+				config.Log.Error("Failed to publish block info", err)
 			}
 		}
 	}

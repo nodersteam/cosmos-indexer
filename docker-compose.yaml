@@ -89,11 +89,11 @@ services:
       --log.level = info \
       --base.start-block 1795888 \
       --base.end-block -1 \
-      --base.throttling 2.005 \
-      --base.rpc-workers 10 \
+      --base.throttling 0.5 \
+      --base.rpc-workers 100 \
       --base.index-transactions true \
       --base.index-block-events true \
-      --probe.rpc https://rpc-celestia.mzonder.com  \
+      --probe.rpc http://162.55.216.79:26657 \
       --probe.account-prefix celestia \
       --probe.chain-id celestia \
       --probe.chain-name celestia \

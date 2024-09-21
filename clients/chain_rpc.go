@@ -73,7 +73,6 @@ func (c *chainRPC) GetTxsByBlockHeight(height int64) (*txTypes.GetTxsEventRespon
 	}
 
 	// TODO unwrap to internal type
-	config.Log.Infof("Total fetched transactions for block %d is %d %d", height, len(txs), len(txsResponses))
 	return &txTypes.GetTxsEventResponse{
 		Txs:         txs,
 		TxResponses: txsResponses,

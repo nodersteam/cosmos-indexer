@@ -1,8 +1,10 @@
 package core
 
 import (
+	"github.com/rs/zerolog/log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/nodersteam/cosmos-indexer/clients"
 
@@ -26,7 +28,10 @@ type IndexerBlockEventData struct {
 }
 
 type BlockRPCWorker interface {
-	Worker(wg *sync.WaitGroup, blockEnqueueChan chan *EnqueueData, outputChannel chan IndexerBlockEventData)
+	Worker(wg *sync.WaitGroup,
+		blockEnqueueChan chan *EnqueueData,
+		result chan<- IndexerBlockEventData,
+		ignoreExisting bool)
 }
 
 type blockRPCWorker struct {
@@ -55,7 +60,10 @@ func NewBlockRPCWorker(
 
 // Worker This function is responsible for making all RPC requests to the chain needed for later processing.
 // The indexer relies on a number of RPC endpoints for full block data, including block event and transaction searches.
-func (w *blockRPCWorker) Worker(wg *sync.WaitGroup, blockEnqueueChan chan *EnqueueData, outputChannel chan IndexerBlockEventData) {
+func (w *blockRPCWorker) Worker(wg *sync.WaitGroup,
+	blockEnqueueChan chan *EnqueueData,
+	result chan<- IndexerBlockEventData,
+	ignoreExisting bool) {
 	defer wg.Done()
 	rpcClient := rpc.URIClient{
 		Address: w.chainClient.Config.RPCAddr,
@@ -78,6 +86,16 @@ func (w *blockRPCWorker) Worker(wg *sync.WaitGroup, blockEnqueueChan chan *Enque
 		}
 
 		// Get the block from the RPC
+		tmStart := time.Now()
+		log.Debug().Msgf("====> picked ip block for fetching %d %s", block.Height, tmStart.String())
+		if ignoreExisting {
+			bl := dbTypes.GetBlockByHeight(w.db, block.Height)
+			if bl.ID > 0 {
+				log.Info().Msgf("Block already indexed %d, ignoring", block.Height)
+				continue
+			}
+		}
+
 		blockData, err := w.rpcClient.GetBlock(block.Height)
 		if err != nil {
 			// This is the only response we continue on. If we can't get the block, we can't index anything.
@@ -142,6 +160,6 @@ func (w *blockRPCWorker) Worker(wg *sync.WaitGroup, blockEnqueueChan chan *Enque
 			}
 		}
 
-		outputChannel <- currentHeightIndexerData
+		result <- currentHeightIndexerData
 	}
 }
