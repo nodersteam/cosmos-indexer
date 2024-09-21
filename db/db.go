@@ -322,6 +322,14 @@ func GetHighestIndexedBlock(db *gorm.DB, chainID uint) models.Block {
 	return block
 }
 
+func GetBlockByHeight(db *gorm.DB, height int64) models.Block {
+	var block models.Block
+	db.Table("blocks").
+		Where("height = ?::int AND tx_indexed = true AND time_stamp != '0001-01-01T00:00:00.000Z'", height).
+		First(&block)
+	return block
+}
+
 func GetBlocksFromStart(db *gorm.DB, chainID uint, startHeight int64, endHeight int64) ([]models.Block, error) {
 	var blocks []models.Block
 
