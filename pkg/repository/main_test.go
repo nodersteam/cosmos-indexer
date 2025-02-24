@@ -380,6 +380,39 @@ create unique index "messageAttributeIndex"
 `
 	migrations = append(migrations, queryTxDelegates)
 
+	queryVotesNormalised := `create table votes_normalized
+(
+    hash         text,
+    weight       text,
+    proposal_id text,
+    height 		 bigint,
+    timestamp    timestamp with time zone,
+    option       text,
+    voter        text
+);`
+	migrations = append(migrations, queryVotesNormalised)
+
+	queryDepositsNormalised := `create table depositors_normalized
+(	
+    id 		 	 bigint,
+    timestamp    timestamp with time zone,
+    hash         text,
+    height 		 bigint,
+    sender       text,
+    proposal_id  text,
+    amount       numeric,
+    denom        text
+);`
+	migrations = append(migrations, queryDepositsNormalised)
+
+	queryCreateTxNormalized := `
+		CREATE TABLE IF NOT EXISTS transactions_normalized (
+			account TEXT,
+			time TIMESTAMP WITH TIME ZONE
+		);
+	`
+	migrations = append(migrations, queryCreateTxNormalized)
+
 	for _, query := range migrations {
 		_, err := postgresConn.Exec(ctx, query)
 		if err != nil {

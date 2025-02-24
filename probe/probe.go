@@ -1,7 +1,7 @@
 package probe
 
 import (
-	"github.com/nodersteam/cosmos-indexer/config"
+	"github.com/noders-team/cosmos-indexer/config"
 	probeClient "github.com/nodersteam/probe/client"
 )
 

@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/nodersteam/cosmos-indexer/pkg/model"
-	"github.com/nodersteam/cosmos-indexer/pkg/repository"
+	"github.com/noders-team/cosmos-indexer/pkg/model"
+	"github.com/noders-team/cosmos-indexer/pkg/repository"
 )
 
 type Blocks interface {
@@ -13,8 +13,9 @@ type Blocks interface {
 	BlockInfoByHash(ctx context.Context, hash string) (*model.BlockInfo, error)
 	BlockValidators(ctx context.Context, block int32) ([]string, error)
 	TotalBlocks(ctx context.Context, to time.Time) (*model.TotalBlocks, error)
+	LatestBlockHeight(ctx context.Context) (int64, error)
 	Blocks(ctx context.Context, limit int64, offset int64) ([]*model.BlockInfo, int64, error)
-	BlockSignatures(ctx context.Context, height int64, valAddress *string,
+	BlockSignatures(ctx context.Context, height int64, valAddress []string,
 		limit int64, offset int64) ([]*model.BlockSigners, int64, error)
 	BlockUptime(ctx context.Context, blockWindow, height int64,
 		validatorAddr string) (float32, error)
@@ -46,11 +47,15 @@ func (s *blocks) TotalBlocks(ctx context.Context, to time.Time) (*model.TotalBlo
 	return s.blocksRepo.TotalBlocks(ctx, to)
 }
 
+func (s *blocks) LatestBlockHeight(ctx context.Context) (int64, error) {
+	return s.blocksRepo.LatestBlockHeight(ctx)
+}
+
 func (s *blocks) Blocks(ctx context.Context, limit int64, offset int64) ([]*model.BlockInfo, int64, error) {
 	return s.blocksRepo.Blocks(ctx, limit, offset)
 }
 
-func (s *blocks) BlockSignatures(ctx context.Context, height int64, valAddress *string, limit int64, offset int64) ([]*model.BlockSigners, int64, error) {
+func (s *blocks) BlockSignatures(ctx context.Context, height int64, valAddress []string, limit int64, offset int64) ([]*model.BlockSigners, int64, error) {
 	return s.blocksRepo.BlockSignatures(ctx, height, valAddress, limit, offset)
 }
 

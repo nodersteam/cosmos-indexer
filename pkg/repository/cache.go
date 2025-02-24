@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/nodersteam/cosmos-indexer/db/models"
+	"github.com/noders-team/cosmos-indexer/db/models"
 
-	"github.com/nodersteam/cosmos-indexer/pkg/model"
+	"github.com/noders-team/cosmos-indexer/pkg/model"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -23,8 +23,8 @@ const (
 )
 
 type TransactionsCache interface {
-	AddTransaction(ctx context.Context, transaction *models.Tx) error
-	GetTransactions(ctx context.Context, start, stop int64) ([]*models.Tx, int64, error)
+	AddTransaction(ctx context.Context, transaction *model.Tx) error
+	GetTransactions(ctx context.Context, start, stop int64) ([]*model.Tx, int64, error)
 }
 
 type BlocksCache interface {
@@ -38,7 +38,7 @@ type TotalsCache interface {
 }
 
 type PubSubCache interface {
-	PublishTx(ctx context.Context, tx *models.Tx) error
+	PublishTx(ctx context.Context, tx *model.Tx) error
 	PublishBlock(ctx context.Context, info *models.Block) error
 }
 
@@ -52,7 +52,7 @@ func NewCache(rdb *redis.Client) *Cache {
 	}
 }
 
-func (s *Cache) AddTransaction(ctx context.Context, transaction *models.Tx) error {
+func (s *Cache) AddTransaction(ctx context.Context, transaction *model.Tx) error {
 	res, err := json.Marshal(transaction)
 	if err != nil {
 		return err
@@ -69,7 +69,7 @@ func (s *Cache) AddTransaction(ctx context.Context, transaction *models.Tx) erro
 	return nil
 }
 
-func (s *Cache) GetTransactions(ctx context.Context, start, stop int64) ([]*models.Tx, int64, error) {
+func (s *Cache) GetTransactions(ctx context.Context, start, stop int64) ([]*model.Tx, int64, error) {
 	if stop > maxTransactionsCacheSize {
 		stop = maxTransactionsCacheSize
 	}
@@ -78,9 +78,9 @@ func (s *Cache) GetTransactions(ctx context.Context, start, stop int64) ([]*mode
 		return nil, 0, err
 	}
 
-	var transactions []*models.Tx
+	var transactions []*model.Tx
 	for _, r := range res {
-		var tx models.Tx
+		var tx model.Tx
 		if err := json.Unmarshal([]byte(r), &tx); err != nil {
 			return nil, 0, err
 		}
@@ -109,7 +109,7 @@ func (s *Cache) PublishBlock(ctx context.Context, info *models.Block) error {
 	return s.rdb.Publish(ctx, blocksChannel, res).Err()
 }
 
-func (s *Cache) PublishTx(ctx context.Context, tx *models.Tx) error {
+func (s *Cache) PublishTx(ctx context.Context, tx *model.Tx) error {
 	res, err := json.Marshal(&tx)
 	if err != nil {
 		return err
@@ -173,7 +173,7 @@ func (s *Cache) AddTotals(ctx context.Context, info *model.AggregatedInfo) error
 	if err != nil {
 		return err
 	}
-	return s.rdb.Set(ctx, totalsKey, string(res), 1*time.Minute).Err()
+	return s.rdb.Set(ctx, totalsKey, string(res), 10*time.Minute).Err()
 }
 
 func (s *Cache) GetTotals(ctx context.Context) (*model.AggregatedInfo, error) {

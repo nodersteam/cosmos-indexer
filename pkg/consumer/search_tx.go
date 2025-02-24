@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/nodersteam/cosmos-indexer/db/models"
-	"github.com/nodersteam/cosmos-indexer/pkg/repository"
+	"github.com/noders-team/cosmos-indexer/pkg/model"
+
+	"github.com/noders-team/cosmos-indexer/pkg/repository"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 )
@@ -40,10 +41,10 @@ func (s *searchTxPublisher) Consume(ctx context.Context) error {
 		}
 	}()
 
-	innerReceiver := make(chan models.Tx)
+	innerReceiver := make(chan model.Tx)
 	defer close(innerReceiver)
 
-	go func(inner chan models.Tx) {
+	go func(inner chan model.Tx) {
 		for {
 			msg, err := subscriber.ReceiveMessage(ctx)
 			if err != nil {
@@ -51,7 +52,7 @@ func (s *searchTxPublisher) Consume(ctx context.Context) error {
 				break
 			}
 
-			var in models.Tx
+			var in model.Tx
 			if err = json.Unmarshal([]byte(msg.Payload), &in); err != nil {
 				log.Err(err).Msgf("error unmarshalling message")
 				continue

@@ -19,8 +19,7 @@ It's indexing time! Follow the steps below to get started.
 
 ```yaml
       --base.reindex = true \
-      --base.genesis-index true \
-      --base.genesis-blocks-step 5000 \
+      --base.mode-blocks-step 5000 \
 ```
 
 ### Prerequisites

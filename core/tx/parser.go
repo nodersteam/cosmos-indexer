@@ -8,19 +8,20 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/noders-team/cosmos-indexer/pkg/model"
+
 	"github.com/rs/zerolog/log"
 
-	"github.com/nodersteam/cosmos-indexer/core"
+	"github.com/noders-team/cosmos-indexer/core"
 	"github.com/shopspring/decimal"
 
 	coretypes "github.com/cometbft/cometbft/rpc/core/types"
 	"github.com/cosmos/cosmos-sdk/types"
 	cosmosTx "github.com/cosmos/cosmos-sdk/types/tx"
-	"github.com/nodersteam/cosmos-indexer/config"
-	txtypes "github.com/nodersteam/cosmos-indexer/cosmos/modules/tx"
-	dbTypes "github.com/nodersteam/cosmos-indexer/db"
-	"github.com/nodersteam/cosmos-indexer/db/models"
-	"github.com/nodersteam/cosmos-indexer/filter"
+	"github.com/noders-team/cosmos-indexer/config"
+	txtypes "github.com/noders-team/cosmos-indexer/cosmos/modules/tx"
+	dbTypes "github.com/noders-team/cosmos-indexer/db"
+	"github.com/noders-team/cosmos-indexer/filter"
 	"github.com/nodersteam/probe/client"
 	"gorm.io/gorm"
 )
@@ -184,6 +185,11 @@ func (a *parser) ProcessRPCBlockByHeightTXs(messageTypeFilters []filter.MessageT
 		filteredSigners := []types.AccAddress{}
 		for _, filteredMessage := range txBody.Messages {
 			if filteredMessage != nil {
+				err := filteredMessage.ValidateBasic()
+				if err != nil {
+					config.Log.Error("error validating filtered message, ignoring", err)
+					continue
+				}
 				filteredSigners = append(filteredSigners, filteredMessage.GetSigners()...)
 			}
 		}
@@ -220,7 +226,7 @@ func (a *parser) ProcessRPCBlockByHeightTXs(messageTypeFilters []filter.MessageT
 			extensionOptions = append(extensionOptions, opt.String())
 		}
 		processedTx.Tx.NonCriticalExtensionOptions = nonExtensionOptions
-		processedTx.Tx.TxResponse = models.TxResponse{
+		processedTx.Tx.TxResponse = model.TxResponse{
 			TxHash:    indexerTxResp.TxHash,
 			Height:    indexerTxResp.Height,
 			TimeStamp: indexerTxResp.TimeStamp,
@@ -234,8 +240,8 @@ func (a *parser) ProcessRPCBlockByHeightTXs(messageTypeFilters []filter.MessageT
 		}
 
 		if txFull.AuthInfo != nil && txFull.AuthInfo.Fee != nil {
-			txAuthInfo := models.AuthInfo{
-				Fee: models.AuthInfoFee{
+			txAuthInfo := model.AuthInfo{
+				Fee: model.AuthInfoFee{
 					Granter:  txFull.AuthInfo.Fee.Granter,
 					Payer:    txFull.AuthInfo.Fee.Payer,
 					GasLimit: txFull.AuthInfo.Fee.GasLimit,
@@ -243,14 +249,14 @@ func (a *parser) ProcessRPCBlockByHeightTXs(messageTypeFilters []filter.MessageT
 				SignerInfos: signerInfos,
 			}
 			if txFull.AuthInfo.Tip != nil {
-				tipAmount := make([]models.TipAmount, 0)
+				tipAmount := make([]model.TipAmount, 0)
 				for _, a := range txFull.AuthInfo.Tip.Amount {
-					tipAmount = append(tipAmount, models.TipAmount{
+					tipAmount = append(tipAmount, model.TipAmount{
 						Denom:  a.Denom,
 						Amount: decimal.NewFromInt(a.Amount.Int64()),
 					})
 				}
-				txAuthInfo.Tip = models.Tip{
+				txAuthInfo.Tip = model.Tip{
 					Tipper: txFull.AuthInfo.Tip.Tipper,
 					Amount: tipAmount,
 				}
@@ -418,7 +424,7 @@ func (a *parser) ProcessRPCTXs(messageTypeFilters []filter.MessageTypeFilter,
 			extensionOptions = append(extensionOptions, opt.String())
 		}
 		processedTx.Tx.NonCriticalExtensionOptions = nonExtensionOptions
-		processedTx.Tx.TxResponse = models.TxResponse{
+		processedTx.Tx.TxResponse = model.TxResponse{
 			TxHash:    indexerTxResp.TxHash,
 			Height:    indexerTxResp.Height,
 			TimeStamp: indexerTxResp.TimeStamp,
@@ -430,8 +436,8 @@ func (a *parser) ProcessRPCTXs(messageTypeFilters []filter.MessageTypeFilter,
 		}
 
 		if currTx.AuthInfo != nil {
-			txAuthInfo := models.AuthInfo{
-				Fee: models.AuthInfoFee{
+			txAuthInfo := model.AuthInfo{
+				Fee: model.AuthInfoFee{
 					Granter:  currTx.AuthInfo.Fee.Granter,
 					Payer:    currTx.AuthInfo.Fee.Payer,
 					GasLimit: currTx.AuthInfo.Fee.GasLimit,
@@ -439,14 +445,14 @@ func (a *parser) ProcessRPCTXs(messageTypeFilters []filter.MessageTypeFilter,
 				SignerInfos: signerInfos,
 			}
 			if currTx.AuthInfo.Tip != nil {
-				tipAmount := make([]models.TipAmount, 0)
+				tipAmount := make([]model.TipAmount, 0)
 				for _, a := range currTx.AuthInfo.Tip.Amount {
-					tipAmount = append(tipAmount, models.TipAmount{
+					tipAmount = append(tipAmount, model.TipAmount{
 						Denom:  a.Denom,
 						Amount: decimal.NewFromInt(a.Amount.Int64()),
 					})
 				}
-				txAuthInfo.Tip = models.Tip{
+				txAuthInfo.Tip = model.Tip{
 					Tipper: currTx.AuthInfo.Tip.Tipper,
 					Amount: tipAmount,
 				}

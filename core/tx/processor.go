@@ -5,15 +5,17 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/noders-team/cosmos-indexer/pkg/model"
+
 	"github.com/cosmos/cosmos-sdk/crypto/keys/multisig"
 	cryptoTypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	"github.com/cosmos/cosmos-sdk/types"
 	cosmosTx "github.com/cosmos/cosmos-sdk/types/tx"
-	"github.com/nodersteam/cosmos-indexer/config"
-	txtypes "github.com/nodersteam/cosmos-indexer/cosmos/modules/tx"
-	dbTypes "github.com/nodersteam/cosmos-indexer/db"
-	"github.com/nodersteam/cosmos-indexer/db/models"
-	"github.com/nodersteam/cosmos-indexer/util"
+	"github.com/noders-team/cosmos-indexer/config"
+	txtypes "github.com/noders-team/cosmos-indexer/cosmos/modules/tx"
+	dbTypes "github.com/noders-team/cosmos-indexer/db"
+	"github.com/noders-team/cosmos-indexer/db/models"
+	"github.com/noders-team/cosmos-indexer/util"
 	"github.com/nodersteam/probe/client"
 	"github.com/rs/zerolog/log"
 )
@@ -22,12 +24,12 @@ type Processor interface {
 	ProcessTx(tx txtypes.MergedTx, messagesRaw [][]byte) (txDBWapper dbTypes.TxDBWrapper,
 		txTime time.Time, err error)
 	ProcessSigners(authInfo *cosmosTx.AuthInfo,
-		messageSigners []types.AccAddress) ([]models.Address, []*models.SignerInfo, error)
-	ProcessFees(authInfo cosmosTx.AuthInfo, signers []models.Address) ([]models.Fee, error)
+		messageSigners []types.AccAddress) ([]models.Address, []*model.SignerInfo, error)
+	ProcessFees(authInfo cosmosTx.AuthInfo, signers []models.Address) ([]model.Fee, error)
 	ProcessMessage(messageIndex int, message types.Msg,
 		txMessageEventLogs []txtypes.LogMessage,
-		uniqueEventTypes map[string]models.MessageEventType,
-		uniqueEventAttributeKeys map[string]models.MessageEventAttributeKey) (string, dbTypes.MessageDBWrapper)
+		uniqueEventTypes map[string]model.MessageEventType,
+		uniqueEventAttributeKeys map[string]model.MessageEventAttributeKey) (string, dbTypes.MessageDBWrapper)
 }
 
 type processor struct {
@@ -49,9 +51,9 @@ func (a *processor) ProcessTx(tx txtypes.MergedTx, messagesRaw [][]byte) (txDBWa
 
 	var messages []dbTypes.MessageDBWrapper
 
-	uniqueMessageTypes := make(map[string]models.MessageType)
-	uniqueEventTypes := make(map[string]models.MessageEventType)
-	uniqueEventAttributeKeys := make(map[string]models.MessageEventAttributeKey)
+	uniqueMessageTypes := make(map[string]model.MessageType)
+	uniqueEventTypes := make(map[string]model.MessageEventType)
+	uniqueEventAttributeKeys := make(map[string]model.MessageEventAttributeKey)
 	// non-zero code means the Tx was unsuccessful. We will still need to account for fees in both cases though.
 	if code == 0 {
 		for messageIndex, message := range tx.Tx.Body.Messages {
@@ -66,7 +68,7 @@ func (a *processor) ProcessTx(tx txtypes.MergedTx, messagesRaw [][]byte) (txDBWa
 		}
 	}
 
-	txDBWapper.Tx = models.Tx{Hash: tx.TxResponse.TxHash, Code: code, Timestamp: txTime}
+	txDBWapper.Tx = model.Tx{Hash: tx.TxResponse.TxHash, Code: code, Timestamp: txTime}
 	txDBWapper.Messages = messages
 	txDBWapper.UniqueMessageTypes = uniqueMessageTypes
 	txDBWapper.UniqueMessageAttributeKeys = uniqueEventAttributeKeys
@@ -81,17 +83,17 @@ func (a *processor) ProcessTx(tx txtypes.MergedTx, messagesRaw [][]byte) (txDBWa
 // 3. Processes the fee payer
 func (a *processor) ProcessSigners(authInfo *cosmosTx.AuthInfo,
 	messageSigners []types.AccAddress,
-) ([]models.Address, []*models.SignerInfo, error) {
+) ([]models.Address, []*model.SignerInfo, error) {
 	// For unique checks
 	signerAddressMap := make(map[string]models.Address)
 	// For deterministic output of signer values
 	var signerAddressArray []models.Address
-	signerInfos := make([]*models.SignerInfo, 0)
+	signerInfos := make([]*model.SignerInfo, 0)
 
 	// If there is a signer info, get the addresses from the keys add it to the list of signers
 	for _, signerInfo := range authInfo.SignerInfos {
 		if signerInfo.PublicKey != nil {
-			var info models.SignerInfo
+			var info model.SignerInfo
 
 			pubKey, err := a.cl.Codec.InterfaceRegistry.Resolve(signerInfo.PublicKey.TypeUrl)
 			if err != nil {
@@ -158,16 +160,16 @@ func (a *processor) ProcessSigners(authInfo *cosmosTx.AuthInfo,
 }
 
 // ProcessFees Processes fees into model form, applying denoms and addresses to them
-func (a *processor) ProcessFees(authInfo cosmosTx.AuthInfo, signers []models.Address) ([]models.Fee, error) {
+func (a *processor) ProcessFees(authInfo cosmosTx.AuthInfo, signers []models.Address) ([]model.Fee, error) {
 	// TODO not the best way
 	if authInfo.Fee == nil {
-		fees := make([]models.Fee, 0)
+		fees := make([]model.Fee, 0)
 		return fees, nil
 	}
 
 	feeCoins := authInfo.Fee.Amount
 	payer := authInfo.Fee.GetPayer()
-	fees := make([]models.Fee, 0)
+	fees := make([]model.Fee, 0)
 
 	for _, coin := range feeCoins {
 		zeroFee := big.NewInt(0)
@@ -183,7 +185,7 @@ func (a *processor) ProcessFees(authInfo cosmosTx.AuthInfo, signers []models.Add
 				payerAddr = signers[0]
 			}
 
-			fees = append(fees, models.Fee{Amount: amount, Denomination: denom, PayerAddress: payerAddr})
+			fees = append(fees, model.Fee{Amount: amount, Denomination: denom, PayerAddress: payerAddr})
 		}
 	}
 
@@ -192,11 +194,11 @@ func (a *processor) ProcessFees(authInfo cosmosTx.AuthInfo, signers []models.Add
 
 func (a *processor) ProcessMessage(messageIndex int, message types.Msg,
 	txMessageEventLogs []txtypes.LogMessage,
-	uniqueEventTypes map[string]models.MessageEventType,
-	uniqueEventAttributeKeys map[string]models.MessageEventAttributeKey,
+	uniqueEventTypes map[string]model.MessageEventType,
+	uniqueEventAttributeKeys map[string]model.MessageEventAttributeKey,
 ) (string, dbTypes.MessageDBWrapper) {
-	var currMessage models.Message
-	var currMessageType models.MessageType
+	var currMessage model.Message
+	var currMessageType model.MessageType
 	currMessage.MessageIndex = messageIndex
 
 	// Get the message log that corresponds to the current message
@@ -213,18 +215,18 @@ func (a *processor) ProcessMessage(messageIndex int, message types.Msg,
 	}
 
 	for eventIndex, event := range messageLog.Events {
-		uniqueEventTypes[event.Type] = models.MessageEventType{Type: event.Type}
+		uniqueEventTypes[event.Type] = model.MessageEventType{Type: event.Type}
 
 		var currMessageEvent dbTypes.MessageEventDBWrapper
-		currMessageEvent.MessageEvent = models.MessageEvent{
+		currMessageEvent.MessageEvent = model.MessageEvent{
 			MessageEventType: uniqueEventTypes[event.Type],
 			Index:            uint64(eventIndex),
 		}
-		var currMessageEventAttributes []models.MessageEventAttribute
+		var currMessageEventAttributes []model.MessageEventAttribute
 		for attributeIndex, attribute := range event.Attributes {
-			uniqueEventAttributeKeys[attribute.Key] = models.MessageEventAttributeKey{Key: attribute.Key}
+			uniqueEventAttributeKeys[attribute.Key] = model.MessageEventAttributeKey{Key: attribute.Key}
 
-			currMessageEventAttributes = append(currMessageEventAttributes, models.MessageEventAttribute{
+			currMessageEventAttributes = append(currMessageEventAttributes, model.MessageEventAttribute{
 				Value:                    attribute.Value,
 				MessageEventAttributeKey: uniqueEventAttributeKeys[attribute.Key],
 				Index:                    uint64(attributeIndex),

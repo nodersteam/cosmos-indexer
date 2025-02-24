@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	"github.com/nodersteam/cosmos-indexer/cmd"
+	"github.com/noders-team/cosmos-indexer/cmd"
 )
 
 func main() {

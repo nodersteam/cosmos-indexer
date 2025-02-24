@@ -2,13 +2,13 @@ package cmd
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/nodersteam/cosmos-indexer/config"
-	"github.com/nodersteam/cosmos-indexer/db"
+	"github.com/noders-team/cosmos-indexer/config"
+	"github.com/noders-team/cosmos-indexer/db"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -46,7 +46,7 @@ func getViperConfig() {
 		// Check in current working dir
 		pwd, err := os.Getwd()
 		if err != nil {
-			log.Fatalf("Could not determine current working dir. Err: %v", err)
+			log.Fatal().Msgf("Could not determine current working dir. Err: %v", err)
 		}
 		if _, err := os.Stat(fmt.Sprintf("%v/config.toml", pwd)); err == nil {
 			cfgFile = pwd
@@ -55,7 +55,7 @@ func getViperConfig() {
 			// Find home directory.
 			home, err := os.UserHomeDir()
 			if err != nil {
-				log.Fatalf("Failed to find user home dir. Err: %v", err)
+				log.Fatal().Msgf("Failed to find user home dir. Err: %v", err)
 			}
 			cfgFile = fmt.Sprintf("%s/.cosmos-indexer", home)
 		}
@@ -72,14 +72,14 @@ func getViperConfig() {
 		case strings.Contains(err.Error(), "Config File \"config\" Not Found"):
 			noConfig = true
 		case strings.Contains(err.Error(), "incomplete number"):
-			log.Fatalf("Failed to read config file %v. This usually means you forgot to wrap a string in quotes.", err)
+			log.Fatal().Msgf("Failed to read config file %v. This usually means you forgot to wrap a string in quotes.", err)
 		default:
-			log.Fatalf("Failed to read config file. Err: %v", err)
+			log.Fatal().Msgf("Failed to read config file. Err: %v", err)
 		}
 	}
 
 	if !noConfig {
-		log.Println("CFG successfully read from: ", cfgFile)
+		log.Info().Msgf("CFG successfully read from: ", cfgFile)
 	}
 
 	viperConf = v
@@ -95,7 +95,7 @@ func bindFlags(cmd *cobra.Command, v *viper.Viper) {
 			val := v.Get(configName)
 			err := cmd.Flags().Set(f.Name, fmt.Sprintf("%v", val))
 			if err != nil {
-				log.Fatalf("Failed to bind config file value %v. Err: %v", configName, err)
+				log.Fatal().Msgf("Failed to bind config file value %v. Err: %v", configName, err)
 			}
 		}
 	})
@@ -108,17 +108,23 @@ func setupLogger(logLevel string, logPath string, prettyLogging bool) {
 func connectToDBAndMigrate(dbConfig config.Database) (*gorm.DB, error) {
 	database, err := db.PostgresDbConnect(dbConfig.Host, dbConfig.Port, dbConfig.Database, dbConfig.User, dbConfig.Password, strings.ToLower(dbConfig.LogLevel))
 	if err != nil {
-		config.Log.Fatal("Could not establish connection to the database", err)
+		log.Err(err).Msg("Could not establish connection to the database")
+		return nil, err
 	}
 
 	sqldb, _ := database.DB()
-	sqldb.SetMaxIdleConns(10)
-	sqldb.SetMaxOpenConns(100)
+	sqldb.SetMaxIdleConns(50)
+	sqldb.SetMaxOpenConns(200)
 	sqldb.SetConnMaxLifetime(time.Hour)
 
-	err = db.MigrateModels(database)
-	if err != nil {
-		config.Log.Error("Error running DB migrations", err)
+	if indexer.cfg.Base.Mode == "fetcher" {
+		log.Info().Msg("Skipping DB migrations for fetcher mode")
+	} else {
+		err = db.MigrateModels(database)
+		if err != nil {
+			log.Err(err).Msg("Error running DB migrations")
+			return nil, err
+		}
 	}
 
 	return database, err

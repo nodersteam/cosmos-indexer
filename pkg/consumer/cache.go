@@ -3,10 +3,8 @@ package consumer
 import (
 	"context"
 
-	"github.com/nodersteam/cosmos-indexer/db/models"
-
-	"github.com/nodersteam/cosmos-indexer/pkg/model"
-	"github.com/nodersteam/cosmos-indexer/pkg/repository"
+	"github.com/noders-team/cosmos-indexer/pkg/model"
+	"github.com/noders-team/cosmos-indexer/pkg/repository"
 	"github.com/rs/zerolog/log"
 )
 
@@ -17,13 +15,13 @@ type CacheConsumer interface {
 
 type cacheConsumer struct {
 	blocksCh chan *model.BlockInfo
-	txCh     chan *models.Tx
+	txCh     chan *model.Tx
 	blocks   repository.BlocksCache
 	txs      repository.TransactionsCache
 }
 
 func NewCacheConsumer(blocks repository.BlocksCache, blocksCh chan *model.BlockInfo,
-	txCh chan *models.Tx, txs repository.TransactionsCache,
+	txCh chan *model.Tx, txs repository.TransactionsCache,
 ) CacheConsumer {
 	return &cacheConsumer{blocks: blocks, blocksCh: blocksCh, txCh: txCh, txs: txs}
 }

@@ -2,8 +2,8 @@ package parsers
 
 import (
 	abci "github.com/cometbft/cometbft/abci/types"
-	"github.com/nodersteam/cosmos-indexer/config"
-	"github.com/nodersteam/cosmos-indexer/db/models"
+	"github.com/noders-team/cosmos-indexer/config"
+	"github.com/noders-team/cosmos-indexer/db/models"
 	"gorm.io/gorm"
 )
 

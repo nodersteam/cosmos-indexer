@@ -16,7 +16,7 @@ import (
 	ctypes "github.com/cometbft/cometbft/rpc/core/types"
 	jsonrpc "github.com/cometbft/cometbft/rpc/jsonrpc/client"
 	types "github.com/cometbft/cometbft/rpc/jsonrpc/types"
-	"github.com/nodersteam/cosmos-indexer/config"
+	"github.com/noders-team/cosmos-indexer/config"
 )
 
 func argsToURLValues(args map[string]interface{}) (url.Values, error) {

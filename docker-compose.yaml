@@ -14,7 +14,7 @@ services:
     stop_grace_period: 1m
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      # - postgres:/var/lib/postgresql/data
+      - ./postgres-data:/var/lib/postgresql/data
     environment:
       - POSTGRES_USER=taxuser
       - POSTGRES_PASSWORD=password
@@ -69,8 +69,6 @@ services:
     stop_grace_period: 10s
     ports:
       - "9002:9002/tcp"
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -87,16 +85,15 @@ services:
       cosmos-indexer index \
       --log.pretty = true \
       --log.level = info \
-      --base.start-block 1795888 \
+      --base.start-block 9568000 \
       --base.end-block -1 \
-      --base.throttling 0.5 \
-      --base.rpc-workers 100 \
+      --base.throttling 0.1005 \
+      --base.rpc-workers 1 \
       --base.index-transactions true \
-      --base.index-block-events true \
-      --probe.rpc http://162.55.216.79:26657 \
-      --probe.account-prefix celestia \
-      --probe.chain-id celestia \
-      --probe.chain-name celestia \
+      --probe.rpc https://nillion-testnet.rpc.kjnodes.com  \
+      --probe.account-prefix nillion \
+      --probe.chain-id nillion-chain-testnet-1 \
+      --probe.chain-name nil \
       --database.host postgres \
       --database.database postgres \
       --database.user taxuser \

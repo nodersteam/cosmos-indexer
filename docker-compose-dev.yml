@@ -1,0 +1,112 @@
+x-logging: &logging
+  logging:
+    driver: json-file
+    options:
+      max-size: 100m
+      max-file: "3"
+      tag: '{{.ImageName}}|{{.Name}}|{{.ID}}'
+
+services:
+  postgres:
+    container_name: postgres-indexer
+    restart: "unless-stopped"
+    image: postgres:15-alpine
+    stop_grace_period: 1m
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./postgres-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=indexer
+      - POSTGRES_MAX_CONNECTIONS=20000
+      - POSTGRES_SHARED_BUFFERS=512MB
+    ports:
+      - "5437:5432/tcp"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "-v", "localhost", "5432"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - indexer_network
+    <<: *logging
+    command: postgres -c 'max_connections=20000'
+
+  redis:
+    container_name: redis
+    image: redis
+    ports:
+      - '6381:6379'
+    networks:
+      - indexer_network
+    <<: *logging
+
+  mongodb:
+    container_name: mongodb
+    restart: "unless-stopped"
+    image: mongo:5.0.2
+    shm_size: 1g
+    environment:
+      - MONGO_INITDB_DATABASE=indexer
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password
+    volumes:
+      - ./mongodb-data:/data/db
+    networks:
+      - indexer_network
+    ports:
+      - '27017-27019:27017-27019'
+
+  dozzle:
+    container_name: dozzle
+    image: amir20/dozzle:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8888:8080"
+
+  indexer:
+    restart: "always"
+    build:
+      context: .
+      dockerfile: Dockerfile
+    user: cosmos-indexer
+    stop_grace_period: 10s
+    ports:
+      - "9002:9002/tcp"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - indexer_network
+    <<: *logging
+    command:
+      - /bin/sh
+      - -c
+      - |
+        cosmos-indexer index \
+        --log.pretty = true \
+        --log.level = info \
+        --base.start-block 1 \
+        --base.end-block 1000 \
+        --base.throttling 0.1005 \
+        --base.rpc-workers 1 \
+        --base.index-transactions true \
+        --probe.rpc http://65.109.54.91:11057  \
+        --probe.account-prefix celestia \
+        --probe.chain-id celestia \
+        --probe.chain-name celestia \
+        --database.host postgres-indexer \
+        --database.database indexer \
+        --database.user postgres \
+        --database.password password \
+        --server.port 9002 \
+        --redis.addr redis:6379 \
+        --mongo.addr mongodb://admin:password@mongodb:27017 \
+        --mongo.db indexer
+
+networks:
+  indexer_network:
+    name: indexer_network
+    external: true

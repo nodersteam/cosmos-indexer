@@ -8,8 +8,8 @@ import (
 
 	ctypes "github.com/cometbft/cometbft/rpc/core/types"
 	sdkTypes "github.com/cosmos/cosmos-sdk/types"
-	"github.com/nodersteam/cosmos-indexer/config"
-	"github.com/nodersteam/cosmos-indexer/db/models"
+	"github.com/noders-team/cosmos-indexer/config"
+	"github.com/noders-team/cosmos-indexer/db/models"
 )
 
 type BlockProcessingFailure int

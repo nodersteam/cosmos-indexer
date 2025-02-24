@@ -2,7 +2,7 @@ package tx
 
 import (
 	cosmTx "github.com/cosmos/cosmos-sdk/types/tx"
-	parsingTypes "github.com/nodersteam/cosmos-indexer/cosmos/modules"
+	parsingTypes "github.com/noders-team/cosmos-indexer/cosmos/modules"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )

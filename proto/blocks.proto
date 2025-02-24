@@ -38,6 +38,8 @@ service BlocksService {
   rpc TxCountByAccounts(TxCountByAccountsRequest) returns (TxCountByAccountsResponse) {}
   rpc AccountInfo(AccountInfoRequest) returns (AccountInfoResponse) {}
   rpc DelegatesByValidator(DelegatesByValidatorRequest) returns (DelegatesByValidatorResponse) {}
+  rpc ProposalDepositors(ProposalDepositorsRequest) returns (ProposalDepositorsResponse) {}
+  rpc RewardByAccount(RewardByAccountRequest) returns (RewardByAccountResponse) {}
 }
 
 
@@ -241,7 +243,7 @@ message GetBlocksResponse{
 message BlockSignaturesRequest {
   int64 blockHeight = 1;
   Limit limit = 2;
-  optional string val_address = 3;
+  repeated string val_address = 3;
 }
 
 message BlockSignaturesResponse {
@@ -382,14 +384,18 @@ message VotesTransaction{
   string voter = 5;
   string option = 6;
   string weight = 7;
+  TxByHash tx = 8;
 }
 
 message GetVotesRequest{
-  string validator_account_address = 3;
+  string validator_account_address = 1;
+  bool unique_proposals = 2;
+  Limit limit = 3;
 }
 
 message GetVotesResponse{
   repeated VotesTransaction transactions = 1;
+  Result result = 2;
 }
 
 message GetPowerEventsRequest {
@@ -429,6 +435,8 @@ message GetVotesByAccountsRequest{
   string vote_type = 3;
   int32 proposalID = 4;
   Limit limit = 5;
+  optional string account_addr = 6;
+  optional SortBy sort = 7;
 }
 
 message GetVotesByAccountsResponse{
@@ -489,4 +497,35 @@ message DelegatesByValidatorResponse{
   Denom totalSum = 1;
   repeated TxByHash tx = 2;
   Result result = 3;
+}
+
+message SortBy{
+  string sort_by = 1;
+  string direction = 2;
+}
+
+message ProposalDeposit {
+  string tx_hash=1;
+  google.protobuf.Timestamp time = 2;
+  Denom amount = 3;
+  string address = 4;
+}
+
+message ProposalDepositorsRequest{
+  int32 proposal_id = 1;
+  Limit limit = 2;
+  optional SortBy sort = 3;
+}
+
+message ProposalDepositorsResponse{
+  repeated ProposalDeposit data=1;
+  Result result = 2;
+}
+
+message RewardByAccountRequest{
+  string account = 1;
+}
+
+message RewardByAccountResponse{
+  repeated Denom amount = 1;
 }

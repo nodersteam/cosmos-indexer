@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	testdb "github.com/nodersteam/cosmos-indexer/pkg/repository/test_db"
+	testdb "github.com/noders-team/cosmos-indexer/pkg/repository/test_db"
 	"github.com/stretchr/testify/suite"
 	"go.mongodb.org/mongo-driver/mongo"
 )

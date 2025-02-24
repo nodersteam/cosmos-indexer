@@ -1,8 +1,9 @@
 package db
 
 import (
-	"github.com/nodersteam/cosmos-indexer/db/models"
-	"github.com/nodersteam/cosmos-indexer/parsers"
+	"github.com/noders-team/cosmos-indexer/db/models"
+	"github.com/noders-team/cosmos-indexer/parsers"
+	"github.com/noders-team/cosmos-indexer/pkg/model"
 )
 
 type BlockDBWrapper struct {
@@ -20,21 +21,21 @@ type BlockEventDBWrapper struct {
 }
 
 type TxDBWrapper struct {
-	Tx                         models.Tx
+	Tx                         model.Tx
 	Messages                   []MessageDBWrapper
-	UniqueMessageTypes         map[string]models.MessageType
-	UniqueMessageEventTypes    map[string]models.MessageEventType
-	UniqueMessageAttributeKeys map[string]models.MessageEventAttributeKey
+	UniqueMessageTypes         map[string]model.MessageType
+	UniqueMessageEventTypes    map[string]model.MessageEventType
+	UniqueMessageAttributeKeys map[string]model.MessageEventAttributeKey
 }
 
 type MessageDBWrapper struct {
-	Message       models.Message
+	Message       model.Message
 	MessageEvents []MessageEventDBWrapper
 }
 
 type MessageEventDBWrapper struct {
-	MessageEvent models.MessageEvent
-	Attributes   []models.MessageEventAttribute
+	MessageEvent model.MessageEvent
+	Attributes   []model.MessageEventAttribute
 }
 
 type DenomDBWrapper struct {

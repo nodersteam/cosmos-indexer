@@ -3,33 +3,37 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/nodersteam/cosmos-indexer/pkg/repository"
+	"github.com/noders-team/cosmos-indexer/pkg/repository"
 
-	"github.com/nodersteam/cosmos-indexer/db/models"
+	"github.com/noders-team/cosmos-indexer/db/models"
 	"github.com/shopspring/decimal"
 
-	"github.com/nodersteam/cosmos-indexer/pkg/model"
-	"github.com/nodersteam/cosmos-indexer/pkg/service"
+	"github.com/noders-team/cosmos-indexer/pkg/model"
+	"github.com/noders-team/cosmos-indexer/pkg/service"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	pb "github.com/nodersteam/cosmos-indexer/proto"
+	pb "github.com/noders-team/cosmos-indexer/proto"
 )
 
 type blocksServer struct {
 	pb.UnimplementedBlocksServiceServer
-	srv   service.Blocks
-	srvTx service.Txs
-	srvS  service.Search
-	cache repository.Cache
+	srv           service.Blocks
+	srvTx         service.Txs
+	srvS          service.Search
+	cache         repository.Cache
+	srvAggregates service.Aggregates
 }
 
-func NewBlocksServer(srv service.Blocks, srvTx service.Txs, srvS service.Search, cache repository.Cache) *blocksServer { //nolint: revive
-	return &blocksServer{srv: srv, srvTx: srvTx, srvS: srvS, cache: cache}
+func NewBlocksServer(srv service.Blocks, srvTx service.Txs, srvS service.Search,
+	cache repository.Cache, srvAggregates service.Aggregates,
+) *blocksServer { //nolint: revive
+	return &blocksServer{srv: srv, srvTx: srvTx, srvS: srvS, cache: cache, srvAggregates: srvAggregates}
 }
 
 func (r *blocksServer) BlockInfo(ctx context.Context, in *pb.GetBlockInfoRequest) (*pb.GetBlockInfoResponse, error) {
@@ -252,7 +256,7 @@ func (r *blocksServer) TransactionRawLog(ctx context.Context, in *pb.Transaction
 	return &pb.TransactionRawLogResponse{RawLog: resp}, nil
 }
 
-func (r *blocksServer) txToProto(tx *models.Tx) *pb.TxByHash {
+func (r *blocksServer) txToProto(tx *model.Tx) *pb.TxByHash {
 	return &pb.TxByHash{
 		Memo:                        tx.Memo,
 		TimeoutHeight:               fmt.Sprintf("%d", tx.TimeoutHeight),
@@ -323,7 +327,7 @@ func (r *blocksServer) txSenderToProto(in *model.TxSenderReceiver) *pb.TxSenderR
 	}
 }
 
-func (r *blocksServer) toFeesProto(fees []models.Fee) []*pb.Fee {
+func (r *blocksServer) toFeesProto(fees []model.Fee) []*pb.Fee {
 	res := make([]*pb.Fee, 0)
 	for _, fee := range fees {
 		res = append(res, &pb.Fee{
@@ -344,7 +348,7 @@ func (r *blocksServer) toBlockProto(bl *models.Block) *pb.Block {
 	}
 }
 
-func (r *blocksServer) txTipToProto(tips []models.TipAmount) []*pb.Denom {
+func (r *blocksServer) txTipToProto(tips []model.TipAmount) []*pb.Denom {
 	denoms := make([]*pb.Denom, 0)
 	for _, tip := range tips {
 		denoms = append(denoms, &pb.Denom{
@@ -364,7 +368,7 @@ func (r *blocksServer) TransactionSigners(ctx context.Context, in *pb.Transactio
 	return &pb.TransactionSignersResponse{Signers: r.toSignerInfosProto(resp)}, nil
 }
 
-func (r *blocksServer) toSignerInfosProto(signs []*models.SignerInfo) []*pb.SignerInfo {
+func (r *blocksServer) toSignerInfosProto(signs []*model.SignerInfo) []*pb.SignerInfo {
 	res := make([]*pb.SignerInfo, 0)
 	for _, sign := range signs {
 		res = append(res, &pb.SignerInfo{
@@ -379,9 +383,16 @@ func (r *blocksServer) toSignerInfosProto(signs []*models.SignerInfo) []*pb.Sign
 func (r *blocksServer) CacheAggregated(ctx context.Context,
 	_ *pb.CacheAggregatedRequest,
 ) (*pb.CacheAggregatedResponse, error) {
-	info, err := r.cache.GetTotals(ctx)
+	info, err := r.srvAggregates.GetTotals(ctx)
 	if err != nil {
-		return &pb.CacheAggregatedResponse{}, err
+		log.Err(err).Msgf("failed to get totals from cache, requesting new %v", err)
+		return &pb.CacheAggregatedResponse{}, errors.New("totals not found")
+	}
+
+	// TODO not the best place
+	lastBlock, err := r.srv.LatestBlockHeight(ctx)
+	if err == nil {
+		info.Blocks.BlockHeight = lastBlock
 	}
 
 	return &pb.CacheAggregatedResponse{
@@ -503,7 +514,7 @@ func (r *blocksServer) UptimeByBlocks(ctx context.Context, in *pb.UptimeByBlocks
 }
 
 func (r *blocksServer) GetVotes(ctx context.Context, in *pb.GetVotesRequest) (*pb.GetVotesResponse, error) {
-	txs, err := r.srvTx.GetVotes(ctx, in.ValidatorAccountAddress)
+	txs, all, err := r.srvTx.GetVotes(ctx, in.ValidatorAccountAddress, in.UniqueProposals, in.Limit.Limit, in.Limit.Offset)
 	if err != nil {
 		return &pb.GetVotesResponse{}, err
 	}
@@ -518,10 +529,18 @@ func (r *blocksServer) GetVotes(ctx context.Context, in *pb.GetVotesRequest) (*p
 			Option:      tx.Option,
 			Weight:      tx.Weight,
 			Time:        timestamppb.New(tx.Timestamp),
+			Tx:          r.txToProto(tx.Tx),
 		})
 	}
 
-	return &pb.GetVotesResponse{Transactions: res}, nil
+	return &pb.GetVotesResponse{
+		Transactions: res,
+		Result: &pb.Result{
+			Limit:  in.Limit.Limit,
+			Offset: in.Limit.Offset,
+			All:    all,
+		},
+	}, nil
 }
 
 func (r *blocksServer) GetPowerEvents(ctx context.Context, in *pb.GetPowerEventsRequest) (*pb.GetPowerEventsResponse, error) {
@@ -595,8 +614,16 @@ func (r *blocksServer) TransactionsByEventValue(ctx context.Context,
 func (r *blocksServer) GetVotesByAccounts(ctx context.Context,
 	in *pb.GetVotesByAccountsRequest,
 ) (*pb.GetVotesByAccountsResponse, error) {
+	var sortBy *model.SortBy
+	if in.Sort != nil {
+		sortBy = &model.SortBy{
+			By:        in.Sort.SortBy,
+			Direction: in.Sort.Direction,
+		}
+	}
+
 	transactions, all, err := r.srvTx.GetVotesByAccounts(ctx, in.Accounts, in.Exclude,
-		in.VoteType, int(in.ProposalID), in.Limit.Limit, in.Limit.Offset)
+		in.VoteType, int(in.ProposalID), in.AccountAddr, in.Limit.Limit, in.Limit.Offset, sortBy)
 	if err != nil {
 		return &pb.GetVotesByAccountsResponse{}, err
 	}
@@ -714,4 +741,59 @@ func (r *blocksServer) DelegatesByValidator(ctx context.Context, in *pb.Delegate
 			All:    total,
 		},
 	}, nil
+}
+
+func (r *blocksServer) ProposalDepositors(ctx context.Context,
+	in *pb.ProposalDepositorsRequest,
+) (*pb.ProposalDepositorsResponse, error) {
+	var sortBy *model.SortBy
+	if in.Sort != nil {
+		sortBy = &model.SortBy{
+			By:        in.Sort.SortBy,
+			Direction: in.Sort.Direction,
+		}
+	}
+	res, all, err := r.srvTx.ProposalDepositors(ctx, int(in.ProposalId), sortBy, in.Limit.Limit, in.Limit.Offset)
+	if err != nil {
+		return &pb.ProposalDepositorsResponse{}, err
+	}
+
+	data := make([]*pb.ProposalDeposit, 0)
+	for _, tx := range res {
+		data = append(data, &pb.ProposalDeposit{
+			TxHash:  tx.TxHash,
+			Time:    timestamppb.New(tx.TxTime),
+			Address: tx.Address,
+			Amount: &pb.Denom{
+				Denom:  tx.Amount.Denom,
+				Amount: tx.Amount.Amount.String(),
+			},
+		})
+	}
+
+	return &pb.ProposalDepositorsResponse{
+		Data: data,
+		Result: &pb.Result{
+			Limit:  in.Limit.Limit,
+			Offset: in.Limit.Offset,
+			All:    all,
+		},
+	}, nil
+}
+
+func (r *blocksServer) RewardByAccount(ctx context.Context, in *pb.RewardByAccountRequest) (*pb.RewardByAccountResponse, error) {
+	res, err := r.srvTx.TotalRewardByAccount(ctx, in.Account)
+	if err != nil {
+		return nil, err
+	}
+
+	data := make([]*pb.Denom, 0)
+	for _, reward := range res {
+		data = append(data, &pb.Denom{
+			Denom:  reward.Denom,
+			Amount: reward.Amount.String(),
+		})
+	}
+
+	return &pb.RewardByAccountResponse{Amount: data}, nil
 }
